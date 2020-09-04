@@ -34,7 +34,7 @@ func newDatrie() *datrie {
 }
 
 // 没有冲突
-func (d *datrie) noConflict(index int, path []byte, prevIndex int, base int, h handleFunc) {
+func (d *datrie) noConflict(index int, path []byte, prevBase int, base int, h handleFunc) {
 	oldPath := path
 	path = path[1:]
 
@@ -42,7 +42,7 @@ func (d *datrie) noConflict(index int, path []byte, prevIndex int, base int, h h
 
 	copy(d.tail[d.pos:], path)
 	d.head[d.pos] = len(path)
-	d.check[base] = prevIndex
+	d.check[base] = prevBase
 	d.base[base] = -d.pos
 
 	d.handler[d.pos+len(path)] = &handle{handle: h, path: string(oldPath) /*TODO*/}
@@ -52,9 +52,9 @@ func (d *datrie) noConflict(index int, path []byte, prevIndex int, base int, h h
 // 查找
 func (d *datrie) lookup(path []byte) *handle {
 
-	prevIndex := 1
+	prevBase := 1
 	for k, c := range path {
-		base := d.base[prevIndex] + getCodeOffset(c)
+		base := d.base[prevBase] + getCodeOffset(c)
 		if d.check[base] <= 0 {
 			return nil
 		}
@@ -70,7 +70,7 @@ func (d *datrie) lookup(path []byte) *handle {
 			return nil
 		}
 
-		prevIndex = base
+		prevBase = base
 
 	}
 
@@ -134,24 +134,30 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 	d.handler[d.pos] = &handle{handle: h, path: string(path)}
 }
 
+func (d *datrie) insertConflict() {
+}
+
 // 插入
 func (d *datrie) insert(path []byte, h handleFunc) {
-	prevIndex := 1
+	prevBase := 1
 	for pos, c := range path {
-		base := d.base[prevIndex] + getCodeOffset(c)
+		base := d.base[prevBase] + getCodeOffset(c)
 		if base >= len(d.base) {
 			// 扩容
 			d.expansion(base)
 		}
 
 		if d.check[base] == 0 {
-			d.noConflict(pos, path[pos:], prevIndex, base, h)
+			d.noConflict(pos, path[pos:], prevBase, base, h)
 			return
 		}
 
 		if start := d.base[base]; start < 0 {
 			d.samePrefix(path, pos, start, base, h)
 			return
+		}
+
+		if d.check[base] != prevBase {
 		}
 	}
 }
