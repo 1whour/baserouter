@@ -1,9 +1,11 @@
 package baserouter
 
 var offsetTable [256]byte
+var offsetToChar [256]byte
 
 func init() {
 	initOffsetTable()
+	initCharTable()
 }
 
 func initOffsetTable() {
@@ -46,6 +48,16 @@ func initOffsetTable() {
 	offsetTable['/'] = offset
 	offsetTable[offset] = tmp
 
+}
+
+func initCharTable() {
+	for char, offset := range offsetTable {
+		offsetToChar[offset] = byte(char)
+	}
+}
+
+func getCharFromOffset(offset int) (char byte) {
+	return offsetToChar[offset]
 }
 
 func getCodeOffset(b byte) int {

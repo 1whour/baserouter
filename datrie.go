@@ -134,7 +134,27 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 	d.handler[d.pos] = &handle{handle: h, path: string(path)}
 }
 
-func (d *datrie) insertConflict() {
+func (d *datrie) findAllNode(prevBase int) (rv []byte) {
+	for index, base := range d.check {
+		if base == prevBase {
+			rv = append(rv, getCharFromOffset(index-prevBase))
+		}
+	}
+	return
+}
+
+func (d *datrie) insertConflict(prevBase, base int) {
+	// step 1-4
+	var list []byte
+	list1 := d.findAllNode(prevBase)
+	list2 := d.findAllNode(base)
+
+	list = list1
+	if len(list1)+1 > len(list2) {
+		list = list2
+	}
+
+	// step 5
 }
 
 // 插入
@@ -158,6 +178,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if d.check[base] != prevBase {
+			d.insertConflict(prevBase, d.check[base])
 		}
 	}
 }
