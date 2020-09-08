@@ -150,11 +150,36 @@ func (d *datrie) insertConflict(prevBase, base int) {
 	list2 := d.findAllNode(base)
 
 	list = list1
+	currBase := prevBase
+	// 取子节点比较少的那个节点
 	if len(list1)+1 > len(list2) {
 		list = list2
+		currBase = base
 	}
 
 	// step 5
+	tempBase := d.base[currBase]
+	q := d.xCheckArray(list)
+	d.base[currBase] = q
+
+	tempNode1 := 0
+	for _, currChar := range list {
+		// step 6 or step 9
+		tempNode1 = tempBase + getCodeOffset(currChar)
+		tempNode2 := d.base[currBase] + getCodeOffset(currChar)
+		d.base[tempNode2] = d.base[tempNode1]
+		d.check[tempNode2] = d.check[tempNode1]
+
+		// step 7
+		if d.base[tempNode1] > 0 {
+			w := d.findOffset(tempNode1)
+			d.check[d.base[tempNode1]+w] = tempNode2
+
+		}
+		// step 8 or step 10
+		d.base[tempNode1] = 0
+		d.check[tempNode1] = 0
+	}
 }
 
 // 插入
@@ -222,6 +247,37 @@ func (d *datrie) expansion(max int) {
 	head := make([]int, need)
 	copy(head, d.head)
 	d.head = head
+}
+
+func (d *datrie) findOffset(tempNode1 int) (w int) {
+	found := false
+	for i := 0; i < len(d.check); i++ {
+		c := d.check[i]
+		if c == tempNode1 {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		panic("not found offset")
+	}
+
+	return tempNode1 - d.base[tempNode1]
+}
+
+// 找空位置
+func (d *datrie) xCheckArray(arr []byte) (q int) {
+	q = 1
+	for i := 0; i < len(arr); i++ {
+		c := arr[i]
+		if d.check[q+getCodeOffset(c)] != 0 {
+			q++
+			i = 0
+		}
+	}
+
+	return q
 }
 
 // 找空位置
