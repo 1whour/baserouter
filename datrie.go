@@ -143,9 +143,10 @@ func (d *datrie) findAllNode(prevBase int) (rv []byte) {
 	return
 }
 
-func (d *datrie) insertConflict(prevBase, base int) {
-	// step 1-4
+func (d *datrie) insertConflict(path []byte, pos int, prevBase, base int, h handleFunc) {
 	var list []byte
+	tempNode1 := d.base[prevBase] + getCodeOffset(path[pos])
+	// step 3
 	list1 := d.findAllNode(prevBase)
 	list2 := d.findAllNode(base)
 
@@ -162,7 +163,6 @@ func (d *datrie) insertConflict(prevBase, base int) {
 	q := d.xCheckArray(list)
 	d.base[currBase] = q
 
-	tempNode1 := 0
 	for _, currChar := range list {
 		// step 6 or step 9
 		tempNode1 = tempBase + getCodeOffset(currChar)
@@ -180,6 +180,22 @@ func (d *datrie) insertConflict(prevBase, base int) {
 		d.base[tempNode1] = 0
 		d.check[tempNode1] = 0
 	}
+
+	// step 11
+	tempNode := d.base[prevBase] + getCodeOffset(list[0])
+
+	// step 12
+	d.base[prevBase] = -d.pos
+	d.base[tempNode] = -d.pos
+
+	d.check[tempNode] = prevBase
+
+	// step 13
+	copy(d.tail[d.pos:], path[pos:])
+
+	// step 14
+	d.pos += len(path[pos:])
+	d.handler[d.pos] = &handle{handle: h, path: string(path) /*TODO*/}
 }
 
 // 插入
@@ -203,7 +219,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if d.check[base] != prevBase {
-			d.insertConflict(prevBase, d.check[base])
+			d.insertConflict(path, pos, prevBase, d.check[base], h)
 		}
 	}
 }
