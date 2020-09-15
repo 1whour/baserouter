@@ -307,7 +307,7 @@ func (d *datrie) findOffset(tempNode1 int) (w int) {
 
 // 找空位置
 func (d *datrie) xCheckArray(arr []byte) (q int) {
-	q = 1
+	q = 2
 	for i := 0; i < len(arr); i++ {
 		c := arr[i]
 		if d.check[q+getCodeOffset(c)] != 0 {
@@ -321,7 +321,7 @@ func (d *datrie) xCheckArray(arr []byte) (q int) {
 
 // 找空位置
 func (d *datrie) xCheckTwo(c1, c2 byte) (q int) {
-	q = 1
+	q = 2
 	for d.check[q+getCodeOffset(c1)] != 0 || d.check[q+getCodeOffset(c2)] != 0 {
 		q++
 	}
@@ -331,7 +331,7 @@ func (d *datrie) xCheckTwo(c1, c2 byte) (q int) {
 
 // 找空位置
 func (d *datrie) xCheck(c byte) (q int) {
-	q = 1
+	q = 2
 	for d.check[q+getCodeOffset(c)] != 0 {
 		q++
 	}
