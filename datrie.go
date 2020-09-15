@@ -2,6 +2,7 @@ package baserouter
 
 import (
 	"bytes"
+	"fmt"
 )
 
 type handle struct {
@@ -49,15 +50,21 @@ func (d *datrie) noConflict(index int, path []byte, prevBase int, base int, h ha
 	d.pos += len(path)
 }
 
+func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
+	fmt.Printf("base %v #word(%s) index(%d) offset(%d) base(%d)\n", d.base[:max], insertWord, index, offset, base)
+	fmt.Printf("check %v\n", d.check[:max])
+	fmt.Printf("tail %s\n", d.tail[:max])
+	fmt.Printf("head %v\n", d.head[:max])
+}
+
 // 查找
 func (d *datrie) lookup(path []byte) *handle {
 
 	prevBase := 1
 	for k, c := range path {
 		base := d.base[prevBase] + getCodeOffset(c)
-		if d.check[base] <= 0 {
-			return nil
-		}
+
+		d.debug(20, string(path), k, getCodeOffset(c), base)
 
 		if start := d.base[base]; start < 0 {
 			start = -start
@@ -70,6 +77,10 @@ func (d *datrie) lookup(path []byte) *handle {
 			return nil
 		}
 
+		if d.check[base] <= 0 {
+			return nil
+		}
+
 		prevBase = base
 
 	}
@@ -77,11 +88,18 @@ func (d *datrie) lookup(path []byte) *handle {
 	return nil
 }
 
+// case3 step 8 or 10
+func (d *datrie) baseAndCheck(base int, c byte, tail int) {
+	newBase := d.base[base] + getCodeOffset(c)
+	d.base[newBase] = -tail
+	d.check[newBase] = base //指向它的爸爸索引
+}
+
 // 共同前缀冲突
 func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc) {
 	start = -start
-	temp := start
 	l := d.head[start]
+	temp := start //step 4
 
 	pos++
 	if bytes.Equal(path[pos:], d.tail[start:start+l]) {
@@ -93,7 +111,7 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 	savePath := d.tail[start : start+l]
 
 	i := 0
-	// 处理相同前缀
+	// 处理相同前缀, step 5
 	for ; insertPath[i] == savePath[i]; i++ {
 		q := d.xCheck(insertPath[i]) //找出可以跳转的位置 , case3 step 5.
 		d.base[base] = q             //修改老的跳转位置, case3 step 6.
@@ -103,15 +121,16 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 
 	}
 
-	// 处理不同前缀
+	// 处理不同前缀, step 7
 	q := d.xCheckTwo(insertPath[i], savePath[i])
 	d.base[base] = q
-	newBase := d.base[base] + getCodeOffset(savePath[i])
-	d.base[newBase] = -temp
-	d.check[newBase] = q
+
+	// step 8
+	d.baseAndCheck(base, savePath[i], temp)
+
 	savePath = savePath[i+1:]
 
-	// case3 step 9
+	// step 9
 	copy(d.tail[temp:], savePath)
 	copy(d.handler[temp:], d.handler[temp:temp+d.head[temp]])
 	d.handler[temp+len(savePath)] = d.handler[temp+d.head[temp]]
@@ -122,10 +141,9 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 	d.head[temp] = len(savePath)
 
 	d.expansionTailAndHandler(insertPath[i+1:])
-	// case3 step 10
-	newBase = d.base[base] + getCodeOffset(insertPath[i])
-	d.base[newBase] = -d.pos
-	d.check[newBase] = base
+	// step 10
+	d.baseAndCheck(base, insertPath[i], d.pos)
+
 	copy(d.tail[d.pos:], insertPath[i+1:])
 	d.head[d.pos] = len(insertPath[i+1:])
 
@@ -201,6 +219,7 @@ func (d *datrie) insertConflict(path []byte, pos int, prevBase, base int, h hand
 // 插入
 func (d *datrie) insert(path []byte, h handleFunc) {
 	prevBase := 1
+	defer d.debug(20, string(path), 0, getCodeOffset(path[0]), 0)
 	for pos, c := range path {
 		base := d.base[prevBase] + getCodeOffset(c)
 		if base >= len(d.base) {
@@ -213,14 +232,18 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 			return
 		}
 
+		if d.check[base] != prevBase {
+			d.insertConflict(path, pos, prevBase, d.check[base], h)
+			return
+		}
+
 		if start := d.base[base]; start < 0 {
 			d.samePrefix(path, pos, start, base, h)
 			return
 		}
 
-		if d.check[base] != prevBase {
-			d.insertConflict(path, pos, prevBase, d.check[base], h)
-		}
+		prevBase = base
+
 	}
 }
 
