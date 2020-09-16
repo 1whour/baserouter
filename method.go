@@ -1,12 +1,23 @@
 package baserouter
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 type method struct {
 	method [7]*datrie
 }
 
 var ErrMethod = errors.New("error method")
+
+func (m *method) init() {
+	for k := range m.method {
+		if m.method[k] == nil {
+			m.method[k] = newDatrie()
+		}
+	}
+}
 
 func methodIndex(method string) (int, error) {
 	if len(method) == 0 {
@@ -18,7 +29,7 @@ func methodIndex(method string) (int, error) {
 		return 0, nil
 	case 'P':
 		if len(method) <= 1 {
-			return 0, ErrMethod
+			return 0, fmt.Errorf("%w, %s", ErrMethod, method)
 		}
 
 		switch method[1] {
@@ -29,18 +40,35 @@ func methodIndex(method string) (int, error) {
 		case 'A':
 			return 3, nil
 		default:
-			return 0, ErrMethod
+			return 0, fmt.Errorf("%w, %s", ErrMethod, method)
 		}
 	case 'D':
 		return 4, nil
 	case 'H':
 		return 5, nil
+	case 'O':
+		return 6, nil
 	default:
-		return 0, ErrMethod
+		return 0, fmt.Errorf("%w, %s", ErrMethod, method)
 	}
 
-	return 0, ErrMethod
+	return 0, fmt.Errorf("%w, %s", ErrMethod, method)
 }
 
-func (m *method) save(method, path string, handle handle) {
+func (m *method) getDatrie(method string) *datrie {
+	index, err := methodIndex(method)
+	if err != nil {
+		return nil
+	}
+
+	return m.method[index]
+}
+
+func (m *method) save(method, path string, h handleFunc) {
+	index, err := methodIndex(method)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	m.method[index].insert([]byte(path), h)
 }
