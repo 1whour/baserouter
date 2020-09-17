@@ -6,8 +6,9 @@ import (
 )
 
 type handle struct {
-	handle handleFunc
-	path   string
+	handle    handleFunc
+	path      string
+	paramName string
 }
 
 type datrie struct {
@@ -35,9 +36,8 @@ func newDatrie() *datrie {
 }
 
 // 没有冲突
-func (d *datrie) noConflict(index int, path []byte, prevBase int, base int, h handleFunc) {
-	oldPath := path
-	path = path[1:]
+func (d *datrie) noConflict(pos int, oldPath []byte, prevBase int, base int, h handleFunc) {
+	path := oldPath[pos+1:]
 
 	d.expansionTailAndHandler(path)
 
@@ -228,7 +228,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if d.check[base] == 0 {
-			d.noConflict(pos, path[pos:], prevBase, base, h)
+			d.noConflict(pos, path, prevBase, base, h)
 			return
 		}
 
