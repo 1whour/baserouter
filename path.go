@@ -19,50 +19,58 @@ func genPath(p []byte) *path {
 	var insertPath bytes.Buffer
 
 	foundParam := false
-
-	defer func() {
-		if insertPath.Len() > 0 {
-			p2.insertPath = insertPath.Bytes()
-		}
-	}()
+	wildcard := false
+	maybeVar := false
 
 	for i := 0; i < len(p); i++ {
-		if p[i] == '/' && !foundParam {
-			if i+1 >= len(p) {
+		if !wildcard && !foundParam {
+			if p[i] == '/' && !maybeVar {
+				maybeVar = true
 				insertPath.WriteByte('/')
 				continue
 			}
+		}
 
-			if p[i+1] == ':' {
-				foundParam = true
-				i++
-				insertPath.WriteString("/:")
-				continue
+		if maybeVar {
+			maybeVar = false
+			if !foundParam && !wildcard {
+
+				if p[i] == ':' {
+					foundParam = true
+					insertPath.WriteString(":")
+					continue
+				}
+
+				if p[i] == '*' {
+					wildcard = true
+					insertPath.WriteString("*")
+					continue
+				}
+			}
+		}
+
+		if wildcard {
+			if p[i] == '/' || foundParam {
+				panic(fmt.Sprintf("catch-all routes are only allowed at the end of the path in path '%s'", p))
 			}
 
-			if p[i+1] == '*' {
-				foundParam = true
-				i++
-				insertPath.WriteString("/*")
-				continue
-			}
+			paramName.WriteByte(p[i])
+			continue
 		}
 
 		if foundParam {
+
 			if p[i] == '/' {
 				foundParam = false
-				if paramName.Len() == 0 {
-					panic(fmt.Sprintf("wildcards must be named with a non-empty name in path:%s",
-						p))
-				}
+				maybeVar = true
 
-				if p2.paramPath == nil {
-					p2.paramPath = make([]*handle, len(p))
-				}
+				p2.checkParam(paramName)
 
-				p2.paramPath[insertPath.Len()-1] = &handle{paramName: paramName.String()}
+				p2.addParamPath(insertPath, paramName)
+
 				insertPath.WriteByte('/')
 
+				paramName.Reset()
 				continue
 			}
 
@@ -74,5 +82,36 @@ func genPath(p []byte) *path {
 
 	}
 
+	if wildcard {
+
+		p2.checkParam(paramName)
+
+		p2.addParamPath(insertPath, paramName)
+	}
+
+	if foundParam {
+		p2.checkParam(paramName)
+		p2.addParamPath(insertPath, paramName)
+	}
+
+	if insertPath.Len() > 0 {
+		p2.insertPath = insertPath.Bytes()
+	}
+
 	return p2
+}
+
+func (p *path) checkParam(paramName bytes.Buffer) {
+	if paramName.Len() == 0 {
+		panic(fmt.Sprintf("wildcards must be named with a non-empty name in path:%s",
+			p.originalPath))
+	}
+}
+
+func (p *path) addParamPath(insertPath, paramName bytes.Buffer) {
+	if p.paramPath == nil {
+		p.paramPath = make([]*handle, len(p.originalPath))
+	}
+
+	p.paramPath[insertPath.Len()-1] = &handle{paramName: paramName.String()}
 }
