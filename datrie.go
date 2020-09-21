@@ -36,7 +36,7 @@ func newDatrie() *datrie {
 }
 
 // 没有冲突
-func (d *datrie) noConflict(pos int, oldPath []byte, prevBase int, base int, h handleFunc) {
+func (d *datrie) noConflict(pos int, oldPath []byte, prevBase int, base int, p *path) {
 	path := oldPath[pos+1:]
 
 	d.expansionTailAndHandler(path)
@@ -46,7 +46,8 @@ func (d *datrie) noConflict(pos int, oldPath []byte, prevBase int, base int, h h
 	d.check[base] = prevBase
 	d.base[base] = -d.pos
 
-	d.handler[d.pos+len(path)] = &handle{handle: h, path: string(oldPath) /*TODO*/}
+	//d.handler[d.pos+len(path)] = &handle{handle: h, path: string(oldPath) /*TODO*/}
+	d.handler[d.pos+len(path)] = p.paramAndHandle[len(p.paramAndHandle)-1]
 	d.pos += len(path)
 }
 
@@ -55,37 +56,84 @@ func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("check %v\n", d.check[:max])
 	fmt.Printf("tail %s\n", d.tail[:max])
 	fmt.Printf("head %v\n", d.head[:max])
+	fmt.Printf("handle %v\n", d.handler[:max])
 }
 
 // 查找
-func (d *datrie) lookup(path []byte) *handle {
+func (d *datrie) lookup(path []byte) (h *handle, p Params) {
 
 	prevBase := 1
 	for k, c := range path {
 		base := d.base[prevBase] + getCodeOffset(c)
 
-		d.debug(20, string(path), k, getCodeOffset(c), base)
-
 		if start := d.base[base]; start < 0 {
 			start = -start
 			l := d.head[start]
 
-			//fmt.Printf("%s:%s\n", path[k+1:], d.tail[start:start+l])
-			if bytes.Equal(path[k+1:], d.tail[start:start+l]) {
-				return d.handler[start+l]
+			paramIndex := 0
+			foundParam := false
+			wildcard := false
+			prevIndex := 0
+
+			var i int
+			for i = 0; i < l; i++ {
+
+				h := d.handler[k+start+i]
+
+				c := d.tail[k+start+i]
+				if !wildcard && c == '*' && h != nil && h.paramName != "" {
+					p = getParam(p)
+					p[paramIndex].Key = h.paramName
+					prevIndex = i
+				}
+
+				if !foundParam && c == ':' && h != nil && h.paramName != "" {
+					p = getParam(p)
+					p[paramIndex].Key = h.paramName
+					foundParam = true
+					prevIndex = i
+				}
+
+				if wildcard {
+					continue
+				}
+
+				if foundParam {
+					if path[k+1+i] == '/' {
+						p[paramIndex].Value = string(path[k+1+prevIndex : k+1+i]) //TODO
+						prevIndex = 0
+						foundParam = false
+						if paramIndex < maxParams {
+							paramIndex++
+						}
+					}
+				}
+
+				if path[k+1+i] != d.tail[start+i] {
+					fmt.Printf("--->index:%d\n", k+start+i)
+					d.debug(30, string(path), 0, 0, 0)
+					fmt.Printf("(%c)(%c)(%p)\n", path[k+1+i], d.tail[k+start+i], h)
+					return nil, nil
+				}
+
 			}
-			return nil
+
+			if foundParam {
+				p[paramIndex].Value = string(path[k+1+prevIndex : k+1+i]) //TODO
+			}
+
+			return d.handler[start+l], p
 		}
 
 		if d.check[base] <= 0 {
-			return nil
+			return nil, nil
 		}
 
 		prevBase = base
 
 	}
 
-	return nil
+	return nil, nil
 }
 
 // case3 step 8 or 10
@@ -219,8 +267,11 @@ func (d *datrie) insertConflict(path []byte, pos int, prevBase, base int, h hand
 // 插入
 func (d *datrie) insert(path []byte, h handleFunc) {
 	prevBase := 1
-	defer d.debug(20, string(path), 0, getCodeOffset(path[0]), 0)
-	for pos, c := range path {
+	//defer d.debug(20, string(path), 0, getCodeOffset(path[0]), 0)
+
+	p := genPath(path, h)
+
+	for pos, c := range p.insertPath {
 		base := d.base[prevBase] + getCodeOffset(c)
 		if base >= len(d.base) {
 			// 扩容
@@ -228,7 +279,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if d.check[base] == 0 {
-			d.noConflict(pos, path, prevBase, base, h)
+			d.noConflict(pos, p.insertPath, prevBase, base, p)
 			return
 		}
 

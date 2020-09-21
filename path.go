@@ -6,14 +6,15 @@ import (
 )
 
 type path struct {
-	originalPath []byte    //原始路径
-	insertPath   []byte    //修改后的路径，单个变量变为: 所有变量变为*
-	paramPath    []*handle //存放param
+	originalPath   []byte    //原始路径
+	insertPath     []byte    //修改后的路径，单个变量变为: 所有变量变为*
+	paramAndHandle []*handle //存放param
 }
 
-func genPath(p []byte) *path {
+func genPath(p []byte, h handleFunc) *path {
 	p2 := &path{}
 	p2.originalPath = p
+	p2.paramAndHandle = make([]*handle, len(p2.originalPath))
 
 	var paramName bytes.Buffer
 	var insertPath bytes.Buffer
@@ -98,6 +99,7 @@ func genPath(p []byte) *path {
 		p2.insertPath = insertPath.Bytes()
 	}
 
+	p2.addHandle(insertPath, h)
 	return p2
 }
 
@@ -108,10 +110,19 @@ func (p *path) checkParam(paramName bytes.Buffer) {
 	}
 }
 
-func (p *path) addParamPath(insertPath, paramName bytes.Buffer) {
-	if p.paramPath == nil {
-		p.paramPath = make([]*handle, len(p.originalPath))
+func (p *path) addHandle(insertPath bytes.Buffer, h handleFunc) {
+	index := insertPath.Len() - 1
+	if p.paramAndHandle[index] == nil {
+		p.paramAndHandle[index] = &handle{handle: h, path: string(p.originalPath)}
+	} else {
+		p.paramAndHandle[index].handle = h
+		p.paramAndHandle[index].path = string(p.originalPath)
 	}
 
-	p.paramPath[insertPath.Len()-1] = &handle{paramName: paramName.String()}
+	p.paramAndHandle = p.paramAndHandle[:insertPath.Len()]
+}
+
+func (p *path) addParamPath(insertPath, paramName bytes.Buffer) {
+
+	p.paramAndHandle[insertPath.Len()-1] = &handle{paramName: paramName.String()}
 }

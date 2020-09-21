@@ -49,9 +49,9 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	datrie := r.getDatrie(req.Method)
 	if datrie != nil {
-		h := datrie.lookup([]byte(path))
+		h, p := datrie.lookup([]byte(path))
 		if h != nil {
-			h.handle(w, req)
+			h.handle(w, req, p)
 			return
 		}
 	}

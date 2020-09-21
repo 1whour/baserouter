@@ -32,7 +32,7 @@ func Test_GenPath_Fail(t *testing.T) {
 
 		assert.Panics(t, func() {
 
-			genPath([]byte(p.path))
+			genPath([]byte(p.path), nil)
 		})
 	}
 
@@ -67,6 +67,7 @@ func Test_GenPath(t *testing.T) {
 				if !b {
 					return b
 				}
+
 				return assert.Equal(t, param.paramName, "last")
 			},
 		},
@@ -94,11 +95,11 @@ func Test_GenPath(t *testing.T) {
 		},
 	} {
 
-		got := genPath(p.need.originalPath)
+		got := genPath(p.need.originalPath, nil)
 		assert.Equal(t, p.need.originalPath, got.originalPath, fmt.Sprintf("-->test index:%d", i))
 		assert.Equal(t, p.need.insertPath, got.insertPath, fmt.Sprintf("-->test index:%d", i))
 
-		if !p.checkParam(got.paramPath) {
+		if !p.checkParam(got.paramAndHandle) {
 			t.Logf("test index:%d\n", i)
 			break
 		}

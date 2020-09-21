@@ -13,27 +13,27 @@ func Test_router_easy(t *testing.T) {
 	router := New()
 
 	total := int32(0)
-	router.GET("/GET", func(w http.ResponseWriter, req *http.Request) {
+	router.GET("/GET", func(w http.ResponseWriter, req *http.Request, _ Params) {
 		atomic.AddInt32(&total, 1)
 	})
 
-	router.HEAD("/HEAD", func(w http.ResponseWriter, req *http.Request) {
+	router.HEAD("/HEAD", func(w http.ResponseWriter, req *http.Request, _ Params) {
 		atomic.AddInt32(&total, 1)
 	})
 
-	router.POST("/POST", func(w http.ResponseWriter, req *http.Request) {
+	router.POST("/POST", func(w http.ResponseWriter, req *http.Request, _ Params) {
 		atomic.AddInt32(&total, 1)
 	})
 
-	router.PATCH("/PATCH", func(w http.ResponseWriter, req *http.Request) {
+	router.PATCH("/PATCH", func(w http.ResponseWriter, req *http.Request, _ Params) {
 		atomic.AddInt32(&total, 1)
 	})
 
-	router.DELETE("/DELETE", func(w http.ResponseWriter, req *http.Request) {
+	router.DELETE("/DELETE", func(w http.ResponseWriter, req *http.Request, _ Params) {
 		atomic.AddInt32(&total, 1)
 	})
 
-	router.OPTIONS("/OPTIONS", func(w http.ResponseWriter, req *http.Request) {
+	router.OPTIONS("/OPTIONS", func(w http.ResponseWriter, req *http.Request, _ Params) {
 		atomic.AddInt32(&total, 1)
 	})
 
