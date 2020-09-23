@@ -36,19 +36,22 @@ func newDatrie() *datrie {
 }
 
 // 拷贝handle
+// pos 是相对于insertPath的偏移量
 func (d *datrie) copyHandler(pos int, p *path) {
 	// 为了tail, head, handler末端对齐， i < len(p.insertPath) - pos ，这里不是等于，原因看下图
 	// tail test/word/:
 	// tail byte [0 116 101 115 116 47 119 111 114 100 47 58 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
 	// head      [0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-	// handle    [<nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> 0xc0000132f0
-	for i := d.pos; i < len(p.insertPath)-pos; i++ {
-		d.handler[i] = p.paramAndHandle[i]
+	// handle    [<nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> 0xc0000132f0]
+	//p.debug(8)
+	for i := 0; i < len(p.insertPath)-pos; i++ {
+		d.handler[d.pos+i] = p.paramAndHandle[pos+i]
 	}
 }
 
 // 没有冲突
 func (d *datrie) noConflict(pos int, prevBase int, base int, p *path) {
+	// pos位置的字符已经放到base里面，所以调过这个字符
 	path := p.insertPath[pos+1:]
 
 	d.expansionTailAndHandler(path)
@@ -58,14 +61,15 @@ func (d *datrie) noConflict(pos int, prevBase int, base int, p *path) {
 	d.check[base] = prevBase
 	d.base[base] = -d.pos
 
-	d.copyHandler(pos, p)
+	d.copyHandler(pos+1, p)
 	d.pos += len(path)
 }
 
 func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
-	fmt.Printf("base %v #word(%s) index(%d) offset(%d) base(%d)\n", d.base[:max], insertWord, index, offset, base)
-	fmt.Printf("check %v\n", d.check[:max])
-	fmt.Printf("tail %s\n", d.tail[:max])
+	fmt.Printf("#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
+	fmt.Printf("base %4s %v\n", "", d.base[:max])
+	fmt.Printf("check %3s %v\n", "", d.check[:max])
+	fmt.Printf("tail %4s %s\n", "", d.tail[:max])
 	fmt.Printf("tail byte %v\n", d.tail[:max])
 	fmt.Printf("head %4s %v\n", "", d.head[:max])
 	fmt.Printf("handle %2s %v\n", "", d.handler[:max])
@@ -84,8 +88,8 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 	for i = k; i < len(path); i++ {
 
 		h := d.handler[start+i]
-
 		c := d.tail[start+i]
+
 		if !wildcard && c == '*' && h != nil && h.paramName != "" {
 			p = getParam(p)
 			p[paramIndex].Key = h.paramName
@@ -118,7 +122,6 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 
 		if k+1+i < l {
 			if path[k+1+i] != d.tail[start+i] {
-				//fmt.Printf("(%c)(%c)(%p)\n", path[k+1+i], d.tail[k+start+i], h)
 				return nil, nil
 			}
 		}
@@ -126,7 +129,8 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 	}
 
 	if foundParam {
-		p[paramIndex].Value = string(path[k+1+prevIndex : k+i]) //TODO
+		// i是相对于path的偏移量，所以不需要+k
+		p[paramIndex].Value = string(path[k+1+prevIndex : i]) //TODO
 	}
 
 	return d.handler[start+l-1], p
@@ -163,12 +167,14 @@ func (d *datrie) baseAndCheck(base int, c byte, tail int) {
 
 // step 9
 func (d *datrie) moveTailAndHandler(temp int, savePath []byte) {
-	copy(d.tail[temp:], savePath)
-	copy(d.handler[temp:], d.handler[temp:temp+d.head[temp]])
-	d.handler[temp+len(savePath)] = d.handler[temp+d.head[temp]]
+	copy(d.tail[temp:], savePath) //移动字符串
+	// 这里减去1原因，是temp+0位置已经放数据，所以-1
+	// TODO check
+	copy(d.handler[temp:], d.handler[temp+len(savePath)-1:temp+d.head[temp]])
+
 	for i := len(savePath); i < d.head[temp]; i++ {
 		d.tail[temp+i] = '?'
-		d.handler[temp+i+1] = nil
+		d.handler[temp+i] = nil
 	}
 	d.head[temp] = len(savePath)
 }
@@ -176,7 +182,7 @@ func (d *datrie) moveTailAndHandler(temp int, savePath []byte) {
 // 共同前缀冲突
 // TODO test 1短 2长
 //           1长 2短
-func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc) {
+func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc, p *path) {
 	start = -start
 	l := d.head[start]
 	temp := start //step 4
@@ -201,6 +207,7 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 		d.check[newBase] = base
 		base = newBase
 
+		//TODO 处理handler
 	}
 
 	// 处理不同前缀, step 7
@@ -223,8 +230,8 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc)
 	d.head[d.pos] = len(insertPath[i+1:])
 
 	// case3 step 11
+	d.copyHandler(len(insertPath)-len(insertPath[i+1+pos:]), p)
 	d.pos += len(insertPath[i+1:])
-	d.handler[d.pos] = &handle{handle: h, path: string(path)}
 }
 
 func (d *datrie) findAllNode(prevBase int) (rv []byte) {
@@ -315,7 +322,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if start := d.base[base]; start < 0 {
-			d.samePrefix(p.insertPath, pos, start, base, h)
+			d.samePrefix(p.insertPath, pos, start, base, h, p)
 			return
 		}
 

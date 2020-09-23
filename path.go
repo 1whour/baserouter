@@ -11,6 +11,14 @@ type path struct {
 	paramAndHandle []*handle //存放param
 }
 
+func (p *path) debug(max int) {
+	fmt.Printf("paramAndHandle: %5s %v\n", "", p.paramAndHandle[:max])
+	fmt.Printf("originalPath bytes: %1s %v\n", "", p.originalPath[:max])
+	fmt.Printf("originalPath string: %0s %s\n", "", p.originalPath[:max])
+	fmt.Printf("insertPath bytes: %3s %v\n", "", p.insertPath[:max])
+	fmt.Printf("insertPath string: %2s %s\n", "", p.insertPath[:max])
+}
+
 func genPath(p []byte, h handleFunc) *path {
 	p2 := &path{}
 	p2.originalPath = p

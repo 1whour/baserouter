@@ -33,7 +33,7 @@ func Test_lookupAndInsertCase1(t *testing.T) {
 }
 
 // TODO 打卡注释的测试
-func Test_lookupAndInsertCase1_param(t *testing.T) {
+func Test_lookupAndInsertCase1_Param(t *testing.T) {
 
 	d := newDatrie()
 	done := 0
@@ -141,8 +141,8 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 			done++
 		})
 
-		d.debug(64, word, 0, 0, 0)
-		fmt.Printf("=================\n")
+		//d.debug(64, word, 0, 0, 0)
+		//fmt.Printf("=================\n")
 	}
 
 	lookupPath := []string{
@@ -164,15 +164,22 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 	for k, word := range lookupPath {
 		h, p := d.lookup([]byte(word))
 
-		assert.NotEqual(t, h, (*handle)(nil))
+		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
 		if h == nil {
 			return
 		}
 
 		h.handle(nil, nil, nil)
 		assert.Equal(t, done, k+1)
-		assert.Equal(t, p[0].Key, needKey)
-		assert.Equal(t, p[0].Value, needVal[k])
+		b := assert.Equal(t, p[0].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
+		if !b {
+			break
+		}
+
+		b = assert.Equal(t, p[0].Value, needVal[k])
+		if !b {
+			break
+		}
 	}
 }
 
