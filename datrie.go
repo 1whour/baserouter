@@ -51,7 +51,7 @@ func (d *datrie) copyHandler(pos int, p *path) {
 
 // 没有冲突
 func (d *datrie) noConflict(pos int, prevBase int, base int, p *path) {
-	// pos位置的字符已经放到base里面，所以调过这个字符
+	// pos位置的字符已经放到base里面，所以跳过这个字符，也是这里pos+1的由来
 	path := p.insertPath[pos+1:]
 
 	d.expansionTailAndHandler(path)
