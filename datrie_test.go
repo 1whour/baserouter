@@ -116,6 +116,7 @@ func Test_lookupAndInsertCase3(t *testing.T) {
 		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
+		d.debug(20, word, 0, 0, 0)
 	}
 
 	for k, word := range insertWord {

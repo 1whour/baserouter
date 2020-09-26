@@ -66,7 +66,7 @@ func (d *datrie) noConflict(pos int, prevBase int, base int, p *path) {
 }
 
 func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
-	fmt.Printf("#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
+	fmt.Printf("\n#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
 	fmt.Printf("base %4s %v\n", "", d.base[:max])
 	fmt.Printf("check %3s %v\n", "", d.check[:max])
 	fmt.Printf("tail %4s %s\n", "", d.tail[:max])
@@ -168,9 +168,8 @@ func (d *datrie) baseAndCheck(base int, c byte, tail int) {
 // step 9
 func (d *datrie) moveTailAndHandler(temp int, savePath []byte) {
 	copy(d.tail[temp:], savePath) //移动字符串
-	// 这里减去1原因，是temp+0位置已经放数据，所以-1
-	// TODO check
-	copy(d.handler[temp:], d.handler[temp+len(savePath)-1:temp+d.head[temp]])
+	// 总长度(temp+d.head[temp])-实际长度(len(savePath)) = 需要偏移的位置
+	copy(d.handler[temp:], d.handler[temp+d.head[temp]-len(savePath):temp+d.head[temp]])
 
 	for i := len(savePath); i < d.head[temp]; i++ {
 		d.tail[temp+i] = '?'
