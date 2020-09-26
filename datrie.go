@@ -85,14 +85,18 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 	prevIndex := 0
 
 	var i int
+	var c byte
 	for i = k; i < len(path); i++ {
 
-		h := d.handler[start+i]
-		c := d.tail[start+i]
+		if !foundParam || !wildcard {
+			h = d.handler[start+i]
+			c = d.tail[start+i]
+		}
 
 		if !wildcard && c == '*' && h != nil && h.paramName != "" {
 			p = getParam(p)
 			p[paramIndex].Key = h.paramName
+			wildcard = true
 			prevIndex = i
 		}
 
@@ -121,6 +125,7 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 		}
 
 		if k+1+i < l {
+			//fmt.Printf("%c:%c\n", path[k+1+i], d.tail[start+i])
 			if path[k+1+i] != d.tail[start+i] {
 				return nil, nil
 			}
@@ -128,7 +133,7 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 
 	}
 
-	if foundParam {
+	if foundParam || wildcard {
 		// i是相对于path的偏移量，所以不需要+k
 		p[paramIndex].Value = string(path[k+1+prevIndex : i]) //TODO
 	}
@@ -175,6 +180,7 @@ func (d *datrie) moveTailAndHandler(temp int, savePath []byte) {
 		d.tail[temp+i] = '?'
 		d.handler[temp+i] = nil
 	}
+
 	d.head[temp] = len(savePath)
 }
 
@@ -186,12 +192,12 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 	l := d.head[start]
 	temp := start //step 4
 
-	pos++
 	if bytes.Equal(path[pos:], d.tail[start:start+l]) {
 		// 重复数据插入, 前缀一样
 		// TODO, 选择策略 替换，还是panic
 		return
 	}
+	pos++
 
 	insertPath := path[pos:]
 	savePath := d.tail[start : start+l]

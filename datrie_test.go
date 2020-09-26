@@ -38,34 +38,34 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 	d := newDatrie()
 	done := 0
 
-	insertPath := []string{"/test/word/:name"}
-	//insertPath := []string{"/test/word/:name", "/get/word/*name"}
+	insertPath := []string{"/test/word/:name", "/get/word/*name"}
+	//insertPath := []string{"/get/word/*name"}
 	for _, word := range insertPath {
 		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
+
+		d.debug(20, word, 0, 0, 0)
 	}
 
-	lookupPath := []string{"/test/word/aaa",
+	lookupPath := []string{
+		"/test/word/aaa",
 		"/test/word/bbb",
 		"/test/word/ccc",
-		/*
-			"/get/word/action1",
-			"/get/word/action2",
-			"/get/word/action3",
-			"/get/word/ccc/ddd",
-		*/
+		"/get/word/action1",
+		"/get/word/action2",
+		"/get/word/action3",
+		"/get/word/ccc/ddd",
 	}
 
-	needVal := []string{"aaa",
+	needVal := []string{
+		"aaa",
 		"bbb",
 		"ccc",
-		/*
-			"action1",
-			"action2",
-			"action3",
-			"ccc/ddd",
-		*/
+		"action1",
+		"action2",
+		"action3",
+		"ccc/ddd",
 	}
 
 	needKey := "name"
@@ -193,6 +193,7 @@ func Test_lookupAndInsertCase4(t *testing.T) {
 		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
+		d.debug(64, word, 0, 0, 0)
 	}
 
 	for k, word := range insertWord {
@@ -206,4 +207,56 @@ func Test_lookupAndInsertCase4(t *testing.T) {
 		assert.Equal(t, done, k+1)
 	}
 
+}
+
+func Test_lookupAndInsertCase4_Param(t *testing.T) {
+	d := newDatrie()
+	done := 0
+
+	insertWord := []string{"bachelor/:name", "jar/:name", "badge/:name", "body/:name"}
+	for _, word := range insertWord {
+		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+			done++
+		})
+
+		//d.debug(64, word, 0, 0, 0)
+		//fmt.Printf("=================\n")
+	}
+
+	lookupPath := []string{
+		"bachelor/aaa",
+		"jar/bbb",
+		"badge/ccc",
+		"body/ddd",
+	}
+
+	needKey := "name"
+
+	needVal := []string{
+		"aaa",
+		"bbb",
+		"ccc",
+		"ddd",
+	}
+
+	for k, word := range lookupPath {
+		h, p := d.lookup([]byte(word))
+
+		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
+		if h == nil {
+			return
+		}
+
+		h.handle(nil, nil, nil)
+		assert.Equal(t, done, k+1)
+		b := assert.Equal(t, p[0].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
+		if !b {
+			break
+		}
+
+		b = assert.Equal(t, p[0].Value, needVal[k])
+		if !b {
+			break
+		}
+	}
 }
