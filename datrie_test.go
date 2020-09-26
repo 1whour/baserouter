@@ -32,7 +32,6 @@ func Test_lookupAndInsertCase1(t *testing.T) {
 	}
 }
 
-// TODO 打卡注释的测试
 func Test_lookupAndInsertCase1_Param(t *testing.T) {
 
 	d := newDatrie()
