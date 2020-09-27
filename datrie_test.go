@@ -135,33 +135,46 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 	d := newDatrie()
 	done := 0
 
-	insertWord := []string{"/a/:name", "/j/:name"}
+	//insertWord := []string{"/a/:name", "/j/:name", "/some/:name/aa", "/some/:name/aa/cc"}
+	insertWord := []string{"/some/:name/12", "/some/:name/12/cc"}
 	for _, word := range insertWord {
 		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 
-		//d.debug(64, word, 0, 0, 0)
+		d.debug(64, word, 0, 0, 0)
 		//fmt.Printf("=================\n")
 	}
 
 	lookupPath := []string{
-		"/a/aaa",
-		"/a/bbb",
-		"/j/ccc",
-		"/j/ddd",
+		"/some/short/12",
+		"/some/long/12/cc",
+		/*
+			"/a/aaa",
+			"/a/bbb",
+			"/j/ccc",
+			"/j/ddd",
+		*/
 	}
 
 	needKey := "name"
 
 	needVal := []string{
-		"aaa",
-		"bbb",
-		"ccc",
-		"ddd",
+		"",
+		"long",
+		/*
+			"aaa",
+			"bbb",
+			"ccc",
+			"ddd",
+		*/
 	}
 
 	for k, word := range lookupPath {
+		if k == 0 {
+			continue
+		}
+
 		h, p := d.lookup([]byte(word))
 
 		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))

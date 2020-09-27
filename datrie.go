@@ -12,22 +12,26 @@ type handle struct {
 }
 
 type datrie struct {
-	base    []int
-	check   []int
-	tail    []byte
-	head    []int
-	handler []*handle
-	pos     int
+	base  []int
+	check []int
+	tail  []byte
+
+	// 为了支持变量加的结构
+	baseHandler []*handle
+	head        []int
+	handler     []*handle
+	pos         int
 }
 
 // 初始化函数
 func newDatrie() *datrie {
 	d := &datrie{
-		base:    make([]int, 1024),
-		check:   make([]int, 1024),
-		tail:    make([]byte, 1024),
-		head:    make([]int, 1024),
-		handler: make([]*handle, 1024),
+		base:        make([]int, 1024),
+		check:       make([]int, 1024),
+		tail:        make([]byte, 1024),
+		head:        make([]int, 1024),
+		baseHandler: make([]*handle, 1024),
+		handler:     make([]*handle, 1024),
 	}
 
 	d.base[0] = 1
@@ -125,7 +129,6 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 		}
 
 		if k+1+i < l {
-			//fmt.Printf("%c:%c\n", path[k+1+i], d.tail[start+i])
 			if path[k+1+i] != d.tail[start+i] {
 				return nil, nil
 			}
@@ -171,17 +174,17 @@ func (d *datrie) baseAndCheck(base int, c byte, tail int) {
 }
 
 // step 9
-func (d *datrie) moveTailAndHandler(temp int, savePath []byte) {
-	copy(d.tail[temp:], savePath) //移动字符串
-	// 总长度(temp+d.head[temp])-实际长度(len(savePath)) = 需要偏移的位置
-	copy(d.handler[temp:], d.handler[temp+d.head[temp]-len(savePath):temp+d.head[temp]])
+func (d *datrie) moveTailAndHandler(temp int, tailPath []byte) {
+	copy(d.tail[temp:], tailPath) //移动字符串
+	// 总长度(temp+d.head[temp])-实际长度(len(tailPath)) = 新的需要插入的位置
+	copy(d.handler[temp:], d.handler[temp+d.head[temp]-len(tailPath):temp+d.head[temp]])
 
-	for i := len(savePath); i < d.head[temp]; i++ {
+	for i := len(tailPath); i < d.head[temp]; i++ {
 		d.tail[temp+i] = '?'
 		d.handler[temp+i] = nil
 	}
 
-	d.head[temp] = len(savePath)
+	d.head[temp] = len(tailPath)
 }
 
 // 共同前缀冲突
@@ -200,11 +203,11 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 	pos++
 
 	insertPath := path[pos:]
-	savePath := d.tail[start : start+l]
+	tailPath := d.tail[start : start+l]
 
 	i := 0
 	// 处理相同前缀, step 5
-	for ; insertPath[i] == savePath[i]; i++ {
+	for ; i < len(insertPath) && i < len(tailPath) && insertPath[i] == tailPath[i]; i++ {
 		q := d.xCheck(insertPath[i]) //找出可以跳转的位置 , case3 step 5.
 		d.base[base] = q             //修改老的跳转位置, case3 step 6.
 
@@ -215,20 +218,34 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 		//TODO 处理handler
 	}
 
-	// 处理不同前缀, step 7
-	q := d.xCheckTwo(insertPath[i], savePath[i])
-	d.base[base] = q
+	if i < len(insertPath) && i < len(tailPath) {
+		// 处理不同前缀, step 7
+		// 找一个没有冲突的parent node的位置
+		q := d.xCheckTwo(insertPath[i], tailPath[i])
+		d.base[base] = q
+	}
 
-	// step 8
-	d.baseAndCheck(base, savePath[i], temp)
+	// 开始处理tail 中没有共同前缀的字符串
+	if i < len(tailPath) {
+		// step 8
+		d.baseAndCheck(base, tailPath[i], temp)
 
-	savePath = savePath[i+1:]
+		tailPath = tailPath[i+1:]
+	} else {
+		tailPath = tailPath[i:]
+	}
 
 	// step 9
-	d.moveTailAndHandler(temp, savePath)
+	d.moveTailAndHandler(temp, tailPath)
+
+	// 开始处理insertPath 中没有共同前缀的字符串
+	if len(tailPath) == 0 {
+		i--
+	}
 
 	d.expansionTailAndHandler(insertPath[i+1:])
 	// step 10
+	fmt.Printf("d.pos = %d\n", d.pos)
 	d.baseAndCheck(base, insertPath[i], d.pos)
 
 	copy(d.tail[d.pos:], insertPath[i+1:])
