@@ -71,12 +71,13 @@ func (d *datrie) noConflict(pos int, prevBase int, base int, p *path) {
 
 func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("\n#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
-	fmt.Printf("base %4s %v\n", "", d.base[:max])
-	fmt.Printf("check %3s %v\n", "", d.check[:max])
-	fmt.Printf("tail %4s %s\n", "", d.tail[:max])
-	fmt.Printf("tail byte %v\n", d.tail[:max])
-	fmt.Printf("head %4s %v\n", "", d.head[:max])
-	fmt.Printf("handle %2s %v\n", "", d.handler[:max])
+	fmt.Printf("base %9s %v\n", "", d.base[:max])
+	fmt.Printf("check %8s %v\n", "", d.check[:max])
+	fmt.Printf("tail %9s %s\n", "", d.tail[:max])
+	fmt.Printf("tail byte %4s %v\n", "", d.tail[:max])
+	fmt.Printf("head %9s %v\n", "", d.head[:max])
+	fmt.Printf("handle %7s %v\n", "", d.handler[:max])
+	fmt.Printf("base handle %2s %v\n", "", d.baseHandler[:max])
 }
 
 func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Params) {
@@ -98,17 +99,15 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 		}
 
 		if !wildcard && c == '*' && h != nil && h.paramName != "" {
-			p = getParam(p)
-			p[paramIndex].Key = h.paramName
-			wildcard = true
+			p.setKey(paramIndex, h.paramName)
 			prevIndex = i
+			wildcard = true
 		}
 
 		if !foundParam && c == ':' && h != nil && h.paramName != "" {
-			p = getParam(p)
-			p[paramIndex].Key = h.paramName
-			foundParam = true
+			p.setKey(paramIndex, h.paramName)
 			prevIndex = i
+			foundParam = true
 		}
 
 		if wildcard {
@@ -117,7 +116,8 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 
 		if foundParam {
 			if k+1+i < len(path) && path[k+1+i] == '/' {
-				p[paramIndex].Value = string(path[k+1+prevIndex : k+1+i]) //TODO
+				//TODO 类型转化优化
+				p.setVal(paramIndex, string(path[k+1+prevIndex:k+1+i]))
 				prevIndex = 0
 				foundParam = false
 				if paramIndex < maxParams {
@@ -138,18 +138,71 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 
 	if foundParam || wildcard {
 		// i是相对于path的偏移量，所以不需要+k
-		p[paramIndex].Value = string(path[k+1+prevIndex : i]) //TODO
+		p[paramIndex].Value = string(path[k+1+prevIndex : i]) //TODO 类型转换优化
 	}
 
 	return d.handler[start+l-1], p
+}
+
+func (d *datrie) findBaseHandler(foundParam, wildcard *bool, index int, prevIndex *int, prevBase int, base *int, path []byte, p *Params) {
+	maybe := false
+	if !*foundParam && !*wildcard {
+		if index > 0 && path[index-1] == '/' {
+			maybe = true
+		}
+	}
+
+	c := path[index]
+	switch {
+
+	case c == '/':
+		*prevIndex = index
+
+	case *foundParam:
+
+		if c == '/' {
+		}
+
+	case *wildcard:
+
+	case maybe:
+
+		paramBase := d.base[prevBase] + getCodeOffset(':')
+		h := d.baseHandler[paramBase]
+		if h != nil && h.paramName != "" { //找到普通变量
+			*foundParam = true
+			return
+		}
+
+		paramBase = d.base[prevBase] + getCodeOffset('*')
+		h = d.baseHandler[paramBase]
+		if h != nil && h.paramName != "" { //找到贪婪匹配
+			*wildcard = true
+			return
+		}
+
+		*base = d.base[prevBase] + getCodeOffset(c)
+	default:
+	}
 }
 
 // 查找
 func (d *datrie) lookup(path []byte) (h *handle, p Params) {
 
 	prevBase := 1
+
+	foundParam := false
+	prevIndex := 0
+	wildcard := false
+
+	var base int
 	for k, c := range path {
-		base := d.base[prevBase] + getCodeOffset(c)
+
+		if !foundParam {
+			base = d.base[prevBase] + getCodeOffset(c)
+		} else {
+			d.findBaseHandler(&foundParam, &wildcard, k, &prevIndex, prevBase, &base, path, &p)
+		}
 
 		if start := d.base[base]; start < 0 {
 			return d.findParamOrWildcard(start, k, path)
@@ -200,6 +253,7 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 		// TODO, 选择策略 替换，还是panic
 		return
 	}
+
 	pos++
 
 	insertPath := path[pos:]
@@ -211,11 +265,17 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 		q := d.xCheck(insertPath[i]) //找出可以跳转的位置 , case3 step 5.
 		d.base[base] = q             //修改老的跳转位置, case3 step 6.
 
+		if d.tail[start+i] == ':' || d.tail[start+i] == '*' {
+			if d.handler[start+i] != nil {
+				d.baseHandler[base] = d.handler[start+i]
+			}
+		}
+
 		newBase := d.base[base] + getCodeOffset(insertPath[i])
 		d.check[newBase] = base
 		base = newBase
 
-		//TODO 处理handler
+		// 处理handler
 	}
 
 	if i < len(insertPath) && i < len(tailPath) {
