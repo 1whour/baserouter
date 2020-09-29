@@ -80,11 +80,10 @@ func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("base handle %2s %v\n", "", d.baseHandler[:max])
 }
 
-func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Params) {
+func (d *datrie) findParamOrWildcard(start, k int, path []byte, p *Params) (h *handle, p2 Params) {
 	start = -start
 	l := d.head[start]
 
-	paramIndex := 0
 	foundParam := false
 	wildcard := false
 	prevIndex := 0
@@ -99,13 +98,13 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 		}
 
 		if !wildcard && c == '*' && h != nil && h.paramName != "" {
-			p.setKey(paramIndex, h.paramName)
+			p.appendKey(h.paramName)
 			prevIndex = i
 			wildcard = true
 		}
 
 		if !foundParam && c == ':' && h != nil && h.paramName != "" {
-			p.setKey(paramIndex, h.paramName)
+			p.appendKey(h.paramName)
 			prevIndex = i
 			foundParam = true
 		}
@@ -117,12 +116,9 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 		if foundParam {
 			if k+1+i < len(path) && path[k+1+i] == '/' {
 				//TODO 类型转化优化
-				p.setVal(paramIndex, string(path[k+1+prevIndex:k+1+i]))
+				p.setVal(string(path[k+1+prevIndex : k+1+i]))
 				prevIndex = 0
 				foundParam = false
-				if paramIndex < maxParams {
-					paramIndex++
-				}
 			}
 
 			continue
@@ -138,75 +134,115 @@ func (d *datrie) findParamOrWildcard(start, k int, path []byte) (h *handle, p Pa
 
 	if foundParam || wildcard {
 		// i是相对于path的偏移量，所以不需要+k
-		p[paramIndex].Value = string(path[k+1+prevIndex : i]) //TODO 类型转换优化
+		p.setVal(string(path[k+1+prevIndex : i])) //TODO 类型转换优化
 	}
 
-	return d.handler[start+l-1], p
+	return d.handler[start+l-1], *p
 }
 
-func (d *datrie) findBaseHandler(foundParam, wildcard *bool, index int, prevIndex *int, prevBase int, base *int, path []byte, p *Params) {
+func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path []byte, p *Params) (*handle, Params) {
+	foundParam := false
+	wildcard := false
 	maybe := false
-	if !*foundParam && !*wildcard {
-		if index > 0 && path[index-1] == '/' {
-			maybe = true
+	prevIndex := 0
+	prevBase := *prevBase2
+	base := *base2
+
+	i := *index
+	for ; i < len(path); i++ {
+		if !foundParam && !wildcard {
+			if path[i] == '/' {
+				maybe = true
+				continue
+			}
+		}
+
+		c := path[i]
+
+		if foundParam {
+
+			if c == '/' {
+				p.setVal(string(path[prevIndex:i]))
+				prevIndex = 0
+				foundParam = false
+				break
+			}
+			continue
+		}
+
+		if wildcard {
+			continue
+		}
+
+		if maybe {
+
+			prevBase = d.base[prevBase] + getCodeOffset('/')
+
+			base = d.base[prevBase] + getCodeOffset(':')
+			h := d.baseHandler[base]
+			if h != nil && h.paramName != "" && d.check[base] == prevBase { //找到普通变量
+				prevBase = base
+				p.appendKey(h.paramName)
+				prevIndex = i
+				foundParam = true
+				maybe = false
+				continue
+			}
+
+			base = d.base[prevBase] + getCodeOffset('*')
+			h = d.baseHandler[base]
+			if h != nil && h.paramName != "" && d.check[base] == prevBase { //找到贪婪匹配
+				prevBase = base
+				p.appendKey(h.paramName)
+				prevIndex = i
+				wildcard = true
+				maybe = false
+				continue
+			}
+
+		}
+
+		if c != '/' {
+			return nil, *p
 		}
 	}
 
-	c := path[index]
-	switch {
-
-	case c == '/':
-		*prevIndex = index
-
-	case *foundParam:
-
-		if c == '/' {
-		}
-
-	case *wildcard:
-
-	case maybe:
-
-		paramBase := d.base[prevBase] + getCodeOffset(':')
-		h := d.baseHandler[paramBase]
-		if h != nil && h.paramName != "" { //找到普通变量
-			*foundParam = true
-			return
-		}
-
-		paramBase = d.base[prevBase] + getCodeOffset('*')
-		h = d.baseHandler[paramBase]
-		if h != nil && h.paramName != "" { //找到贪婪匹配
-			*wildcard = true
-			return
-		}
-
-		*base = d.base[prevBase] + getCodeOffset(c)
-	default:
+	if foundParam || wildcard {
+		// i是相对于path的偏移量，所以不需要+k
+		p.setVal(string(path[prevIndex:i])) //TODO 类型转换优化
 	}
+
+	*index = i
+	*prevBase2 = prevBase
+	*base2 = base
+	return d.baseHandler[base], *p
 }
 
 // 查找
 func (d *datrie) lookup(path []byte) (h *handle, p Params) {
 
 	prevBase := 1
-
-	foundParam := false
-	prevIndex := 0
-	wildcard := false
-
 	var base int
-	for k, c := range path {
 
-		if !foundParam {
-			base = d.base[prevBase] + getCodeOffset(c)
-		} else {
-			d.findBaseHandler(&foundParam, &wildcard, k, &prevIndex, prevBase, &base, path, &p)
+	for k := 0; k < len(path); k++ {
+
+		c := path[k]
+		if c == '/' {
+			_, p = d.findBaseHandler(&k, &prevBase, &base, path, &p)
 		}
 
-		if start := d.base[base]; start < 0 {
-			return d.findParamOrWildcard(start, k, path)
+		c = path[k]
+
+		base = d.base[prevBase] + getCodeOffset(c)
+
+		if start := d.base[base]; start < 0 && d.base[prevBase] == prevBase {
+			fmt.Printf("prevBase:%d lookup %p, index:%d ############ hahahaha:(%s)(%s) base %d, check(%d), %c, %c\n",
+				prevBase, &path, k, path, path[k:], base, d.check[base], c, path[k])
+			return d.findParamOrWildcard(start, k, path, &p)
 		}
+
+		fmt.Printf("prevBase:%d lookup %p, index:%d ############ hahahaha:(%s)(%s) base %d, check(%d), %c, %c\n",
+			prevBase, &path, k, path, path[k:], base, d.check[base], c, path[k])
 
 		if d.check[base] <= 0 {
 			return nil, nil
@@ -221,7 +257,11 @@ func (d *datrie) lookup(path []byte) (h *handle, p Params) {
 
 // case3 step 8 or 10
 func (d *datrie) baseAndCheck(base int, c byte, tail int) {
+	q := d.xCheck(c)
+	d.base[base] = q
 	newBase := d.base[base] + getCodeOffset(c)
+	fmt.Printf("%d, d.base[base] = %d,  d.check[base] = %d\n", base, d.base[base], d.check[base])
+	fmt.Printf(":::::::::::d.base[newBase] =%d: c = (%c): d.check[newBase] = %d, tail:%d\n", d.base[newBase], c, d.check[newBase], tail)
 	d.base[newBase] = -tail
 	d.check[newBase] = base //指向它的爸爸索引
 }
@@ -265,17 +305,16 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 		q := d.xCheck(insertPath[i]) //找出可以跳转的位置 , case3 step 5.
 		d.base[base] = q             //修改老的跳转位置, case3 step 6.
 
+		newBase := d.base[base] + getCodeOffset(insertPath[i])
+		d.check[newBase] = base
+		base = newBase
+
 		if d.tail[start+i] == ':' || d.tail[start+i] == '*' {
 			if d.handler[start+i] != nil {
 				d.baseHandler[base] = d.handler[start+i]
 			}
 		}
 
-		newBase := d.base[base] + getCodeOffset(insertPath[i])
-		d.check[newBase] = base
-		base = newBase
-
-		// 处理handler
 	}
 
 	if i < len(insertPath) && i < len(tailPath) {
@@ -293,6 +332,7 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 		tailPath = tailPath[i+1:]
 	} else {
 		tailPath = tailPath[i:]
+		// 设置为0，在moveTailAndHandler函数里面可以给无效的tail变为?号
 	}
 
 	// step 9
@@ -300,12 +340,11 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 
 	// 开始处理insertPath 中没有共同前缀的字符串
 	if len(tailPath) == 0 {
-		i--
+		//i--
 	}
 
 	d.expansionTailAndHandler(insertPath[i+1:])
 	// step 10
-	fmt.Printf("d.pos = %d\n", d.pos)
 	d.baseAndCheck(base, insertPath[i], d.pos)
 
 	copy(d.tail[d.pos:], insertPath[i+1:])
@@ -404,6 +443,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if start := d.base[base]; start < 0 {
+			// start 小于0，说明有共同前缀
 			d.samePrefix(p.insertPath, pos, start, base, h, p)
 			return
 		}

@@ -8,6 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TODO test
+// fail
+// /:name
+// /aa
 func Test_lookupAndInsertCase1(t *testing.T) {
 
 	d := newDatrie()
@@ -142,13 +146,13 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 			done++
 		})
 
-		d.debug(64, word, 0, 0, 0)
+		d.debug(90, word, 0, 0, 0)
 		//fmt.Printf("=================\n")
 	}
 
 	lookupPath := []string{
-		"/some/short/12",
-		"/some/long/12/cc",
+		"/some/4567/12",
+		"/some/1234/12/cc",
 		/*
 			"/a/aaa",
 			"/a/bbb",
@@ -160,8 +164,8 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 	needKey := "name"
 
 	needVal := []string{
-		"",
-		"long",
+		"4567",
+		"1234",
 		/*
 			"aaa",
 			"bbb",
