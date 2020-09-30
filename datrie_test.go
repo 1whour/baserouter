@@ -19,13 +19,13 @@ func Test_lookupAndInsertCase1(t *testing.T) {
 
 	insertWord := []string{"bachelor"}
 	for _, word := range insertWord {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 	}
 
 	for k, word := range insertWord {
-		h, _ := d.lookup([]byte(word))
+		h, _ := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {
@@ -44,11 +44,11 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 	insertPath := []string{"/test/word/:name", "/get/word/*name"}
 	//insertPath := []string{"/get/word/*name"}
 	for _, word := range insertPath {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 
-		d.debug(20, word, 0, 0, 0)
+		//d.debug(20, word, 0, 0, 0)
 	}
 
 	lookupPath := []string{
@@ -73,7 +73,7 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 
 	needKey := "name"
 	for k, word := range lookupPath {
-		h, p := d.lookup([]byte(word))
+		h, p := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {
@@ -81,9 +81,9 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 		}
 
 		h.handle(nil, nil, nil)
-		assert.Equal(t, done, k+1)
-		assert.Equal(t, p[0].Key, needKey)
-		assert.Equal(t, p[0].Value, needVal[k])
+		assert.Equal(t, done, k+1, fmt.Sprintf("search word(%s)", word))
+		assert.Equal(t, needKey, p[0].Key, fmt.Sprintf("search word(%s)", word))
+		assert.Equal(t, needVal[k], p[0].Value, fmt.Sprintf("search word(%s)", word))
 	}
 }
 
@@ -93,13 +93,13 @@ func Test_lookupAndInsertCase2(t *testing.T) {
 
 	insertWord := []string{"bachelor", "jar"}
 	for _, word := range insertWord {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 	}
 
 	for k, word := range insertWord {
-		h, _ := d.lookup([]byte(word))
+		h, _ := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {
@@ -116,14 +116,14 @@ func Test_lookupAndInsertCase3(t *testing.T) {
 
 	insertWord := []string{"bachelor", "jar", "badge"}
 	for _, word := range insertWord {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
-		d.debug(20, word, 0, 0, 0)
+		//d.debug(20, word, 0, 0, 0)
 	}
 
 	for k, word := range insertWord {
-		h, _ := d.lookup([]byte(word))
+		h, _ := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {
@@ -139,26 +139,23 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 	d := newDatrie()
 	done := 0
 
-	//insertWord := []string{"/a/:name", "/j/:name", "/some/:name/aa", "/some/:name/aa/cc"}
-	insertWord := []string{"/some/:name/12", "/some/:name/12/cc"}
+	insertWord := []string{"/some/:name/12", "/some/:name/12/cc", "/a/:name", "/j/:name"}
 	for _, word := range insertWord {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 
-		d.debug(90, word, 0, 0, 0)
+		//d.debug(90, word, 0, 0, 0)
 		//fmt.Printf("=================\n")
 	}
 
 	lookupPath := []string{
 		"/some/4567/12",
 		"/some/1234/12/cc",
-		/*
-			"/a/aaa",
-			"/a/bbb",
-			"/j/ccc",
-			"/j/ddd",
-		*/
+		"/a/aaa",
+		"/a/bbb",
+		"/j/ccc",
+		"/j/ddd",
 	}
 
 	needKey := "name"
@@ -166,20 +163,15 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 	needVal := []string{
 		"4567",
 		"1234",
-		/*
-			"aaa",
-			"bbb",
-			"ccc",
-			"ddd",
-		*/
+		"aaa",
+		"bbb",
+		"ccc",
+		"ddd",
 	}
 
 	for k, word := range lookupPath {
-		if k == 0 {
-			continue
-		}
 
-		h, p := d.lookup([]byte(word))
+		h, p := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
 		if h == nil {
@@ -206,14 +198,14 @@ func Test_lookupAndInsertCase4(t *testing.T) {
 
 	insertWord := []string{"bachelor", "jar", "badge", "baby"}
 	for _, word := range insertWord {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
-		d.debug(64, word, 0, 0, 0)
+		//d.debug(70, word, 0, 0, 0)
 	}
 
 	for k, word := range insertWord {
-		h, _ := d.lookup([]byte(word))
+		h, _ := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {
@@ -231,7 +223,7 @@ func Test_lookupAndInsertCase4_Param(t *testing.T) {
 
 	insertWord := []string{"bachelor/:name", "jar/:name", "badge/:name", "body/:name"}
 	for _, word := range insertWord {
-		d.insert([]byte(word), func(w http.ResponseWriter, r *http.Request, p Params) {
+		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 
@@ -256,7 +248,7 @@ func Test_lookupAndInsertCase4_Param(t *testing.T) {
 	}
 
 	for k, word := range lookupPath {
-		h, p := d.lookup([]byte(word))
+		h, p := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
 		if h == nil {

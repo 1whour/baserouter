@@ -64,11 +64,11 @@ func (m *method) getDatrie(method string) *datrie {
 	return m.method[index]
 }
 
-func (m *method) save(method, path string, h handleFunc) {
+func (m *method) save(method, path string, h HandleFunc) {
 	index, err := methodIndex(method)
 	if err != nil {
 		panic(err.Error())
 	}
 
-	m.method[index].insert([]byte(path), h)
+	m.method[index].insert(path, h)
 }

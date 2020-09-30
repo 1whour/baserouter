@@ -1,12 +1,11 @@
 package baserouter
 
 import (
-	"bytes"
 	"fmt"
 )
 
 type handle struct {
-	handle    handleFunc
+	handle    HandleFunc
 	path      string
 	paramName string
 }
@@ -80,67 +79,60 @@ func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("base handle %2s %v\n", "", d.baseHandler[:max])
 }
 
-func (d *datrie) findParamOrWildcard(start, k int, path []byte, p *Params) (h *handle, p2 Params) {
+func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *handle, p2 Params) {
 	start = -start
 	l := d.head[start]
 
-	foundParam := false
-	wildcard := false
 	prevIndex := 0
 
-	var i int
+	var i, j int
 	var c byte
-	for i = k; i < len(path); i++ {
 
-		if !foundParam || !wildcard {
-			h = d.handler[start+i]
-			c = d.tail[start+i]
-		}
+	// i 必然是从0开始算的, l里面存放还有多少字符
+	for i, j = 0, k+1; i < l; i++ {
 
-		if !wildcard && c == '*' && h != nil && h.paramName != "" {
+		h = d.handler[start+i]
+		c = d.tail[start+i]
+
+		if c == ':' && h != nil && h.paramName != "" {
+
 			p.appendKey(h.paramName)
-			prevIndex = i
-			wildcard = true
-		}
+			prevIndex = j
 
-		if !foundParam && c == ':' && h != nil && h.paramName != "" {
-			p.appendKey(h.paramName)
-			prevIndex = i
-			foundParam = true
-		}
-
-		if wildcard {
-			continue
-		}
-
-		if foundParam {
-			if k+1+i < len(path) && path[k+1+i] == '/' {
-				//TODO 类型转化优化
-				p.setVal(string(path[k+1+prevIndex : k+1+i]))
-				prevIndex = 0
-				foundParam = false
+			for ; j < len(path) && path[j] != '/'; j++ {
 			}
 
-			continue
+			p.setVal(path[prevIndex:j])
+
+			if j == len(path) { // 这是路径里面最后一个变量
+				break
+			}
+
+			continue //该路径可能还有变量
+
 		}
 
-		if k+1+i < l {
-			if path[k+1+i] != d.tail[start+i] {
+		if c == '*' && h != nil && h.paramName != "" {
+
+			p.appendKey(h.paramName)
+			p.setVal(path[j:len(path)])
+			break
+		}
+
+		if j < len(path) {
+			if path[j] != d.tail[start+i] {
 				return nil, nil
 			}
 		}
 
-	}
+		j++
 
-	if foundParam || wildcard {
-		// i是相对于path的偏移量，所以不需要+k
-		p.setVal(string(path[k+1+prevIndex : i])) //TODO 类型转换优化
 	}
 
 	return d.handler[start+l-1], *p
 }
 
-func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path []byte, p *Params) (*handle, Params) {
+func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path string, p *Params) (*handle, Params) {
 	foundParam := false
 	wildcard := false
 	maybe := false
@@ -162,7 +154,7 @@ func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path []byte, p *P
 		if foundParam {
 
 			if c == '/' {
-				p.setVal(string(path[prevIndex:i]))
+				p.setVal(path[prevIndex:i])
 				prevIndex = 0
 				foundParam = false
 				break
@@ -177,8 +169,8 @@ func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path []byte, p *P
 		if maybe {
 
 			prevBase = d.base[prevBase] + getCodeOffset('/')
-
 			base = d.base[prevBase] + getCodeOffset(':')
+
 			h := d.baseHandler[base]
 			if h != nil && h.paramName != "" && d.check[base] == prevBase { //找到普通变量
 				prevBase = base
@@ -209,7 +201,7 @@ func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path []byte, p *P
 
 	if foundParam || wildcard {
 		// i是相对于path的偏移量，所以不需要+k
-		p.setVal(string(path[prevIndex:i])) //TODO 类型转换优化
+		p.setVal(path[prevIndex:i])
 	}
 
 	*index = i
@@ -219,7 +211,7 @@ func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path []byte, p *P
 }
 
 // 查找
-func (d *datrie) lookup(path []byte) (h *handle, p Params) {
+func (d *datrie) lookup(path string) (h *handle, p Params) {
 
 	prevBase := 1
 	var base int
@@ -235,14 +227,9 @@ func (d *datrie) lookup(path []byte) (h *handle, p Params) {
 
 		base = d.base[prevBase] + getCodeOffset(c)
 
-		if start := d.base[base]; start < 0 && d.base[prevBase] == prevBase {
-			fmt.Printf("prevBase:%d lookup %p, index:%d ############ hahahaha:(%s)(%s) base %d, check(%d), %c, %c\n",
-				prevBase, &path, k, path, path[k:], base, d.check[base], c, path[k])
+		if start := d.base[base]; start < 0 && d.check[base] == prevBase {
 			return d.findParamOrWildcard(start, k, path, &p)
 		}
-
-		fmt.Printf("prevBase:%d lookup %p, index:%d ############ hahahaha:(%s)(%s) base %d, check(%d), %c, %c\n",
-			prevBase, &path, k, path, path[k:], base, d.check[base], c, path[k])
 
 		if d.check[base] <= 0 {
 			return nil, nil
@@ -252,18 +239,18 @@ func (d *datrie) lookup(path []byte) (h *handle, p Params) {
 
 	}
 
-	return nil, nil
+	return d.baseHandler[base], p
 }
 
 // case3 step 8 or 10
 func (d *datrie) baseAndCheck(base int, c byte, tail int) {
 	q := d.xCheck(c)
 	d.base[base] = q
-	newBase := d.base[base] + getCodeOffset(c)
-	fmt.Printf("%d, d.base[base] = %d,  d.check[base] = %d\n", base, d.base[base], d.check[base])
-	fmt.Printf(":::::::::::d.base[newBase] =%d: c = (%c): d.check[newBase] = %d, tail:%d\n", d.base[newBase], c, d.check[newBase], tail)
-	d.base[newBase] = -tail
-	d.check[newBase] = base //指向它的爸爸索引
+	nextBase := d.base[base] + getCodeOffset(c)
+
+	//fmt.Printf("baseAndCheck->base %d, %c, check:%d\n", base, c, d.check[base])
+	d.base[nextBase] = -tail
+	d.check[nextBase] = base //指向它的爸爸索引
 }
 
 // step 9
@@ -283,12 +270,12 @@ func (d *datrie) moveTailAndHandler(temp int, tailPath []byte) {
 // 共同前缀冲突
 // TODO test 1短 2长
 //           1长 2短
-func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc, p *path) {
+func (d *datrie) samePrefix(path string, pos, start int, base int, h HandleFunc, p *path) {
 	start = -start
 	l := d.head[start]
 	temp := start //step 4
 
-	if bytes.Equal(path[pos:], d.tail[start:start+l]) {
+	if path[pos:] == BytesToString(d.tail[start:start+l]) {
 		// 重复数据插入, 前缀一样
 		// TODO, 选择策略 替换，还是panic
 		return
@@ -302,17 +289,17 @@ func (d *datrie) samePrefix(path []byte, pos, start int, base int, h handleFunc,
 	i := 0
 	// 处理相同前缀, step 5
 	for ; i < len(insertPath) && i < len(tailPath) && insertPath[i] == tailPath[i]; i++ {
-		q := d.xCheck(insertPath[i]) //找出可以跳转的位置 , case3 step 5.
-		d.base[base] = q             //修改老的跳转位置, case3 step 6.
+		c := insertPath[i]
+		q := d.xCheck(c) //找出可以跳转的位置 , case3 step 5.
+		d.base[base] = q //修改老的跳转位置, case3 step 6.
 
-		newBase := d.base[base] + getCodeOffset(insertPath[i])
-		d.check[newBase] = base
-		base = newBase
+		nextBase := d.base[base] + getCodeOffset(c)
+		d.check[nextBase] = base
+		//fmt.Printf("c = %c, d.base[base] = %d, q = %d, nextBase:%d, d.check = %d\n", c, d.base[base], q, nextBase, d.check[nextBase])
+		base = nextBase
 
-		if d.tail[start+i] == ':' || d.tail[start+i] == '*' {
-			if d.handler[start+i] != nil {
-				d.baseHandler[base] = d.handler[start+i]
-			}
+		if d.handler[start+i] != nil {
+			d.baseHandler[base] = d.handler[start+i]
 		}
 
 	}
@@ -364,7 +351,7 @@ func (d *datrie) findAllNode(prevBase int) (rv []byte) {
 	return
 }
 
-func (d *datrie) insertConflict(path []byte, pos int, prevBase, base int, h handleFunc) {
+func (d *datrie) insertConflict(path string, pos int, prevBase, base int, h HandleFunc) {
 	var list []byte
 	tempNode1 := d.base[prevBase] + getCodeOffset(path[pos])
 	// step 3
@@ -416,16 +403,17 @@ func (d *datrie) insertConflict(path []byte, pos int, prevBase, base int, h hand
 
 	// step 14
 	d.pos += len(path[pos:])
-	d.handler[d.pos] = &handle{handle: h, path: string(path) /*TODO*/}
+	d.handler[d.pos] = &handle{handle: h, path: path /*TODO*/}
 }
 
 // 插入
-func (d *datrie) insert(path []byte, h handleFunc) {
+func (d *datrie) insert(path string, h HandleFunc) {
 	prevBase := 1
 
 	p := genPath(path, h)
 
-	for pos, c := range p.insertPath {
+	for pos := 0; pos < len(p.insertPath); pos++ {
+		c := p.insertPath[pos]
 		base := d.base[prevBase] + getCodeOffset(c)
 		if base >= len(d.base) {
 			// 扩容
@@ -438,6 +426,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 		}
 
 		if d.check[base] != prevBase {
+			panic("wo kao")
 			d.insertConflict(path, pos, prevBase, d.check[base], h)
 			return
 		}
@@ -454,7 +443,7 @@ func (d *datrie) insert(path []byte, h handleFunc) {
 }
 
 // 扩容tail 和 handler
-func (d *datrie) expansionTailAndHandler(path []byte) {
+func (d *datrie) expansionTailAndHandler(path string) {
 	need := 0
 	if len(d.tail[d.pos:]) < len(path) {
 		need = len(d.tail) + len(path)
@@ -477,6 +466,7 @@ func expansion(array *[]int, need int) {
 	a := make([]int, need)
 	copy(a, *array)
 	*array = a
+	panic("hello ")
 }
 
 // 扩容

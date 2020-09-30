@@ -1,13 +1,13 @@
 package baserouter
 
 import (
-	"bytes"
 	"fmt"
+	"strings"
 )
 
 type path struct {
-	originalPath   []byte    //原始路径
-	insertPath     []byte    //修改后的路径，单个变量变为: 所有变量变为*
+	originalPath   string    //原始路径
+	insertPath     string    //修改后的路径，单个变量变为: 所有变量变为*
 	paramAndHandle []*handle //存放param
 }
 
@@ -19,13 +19,13 @@ func (p *path) debug(max int) {
 	fmt.Printf("insertPath string: %2s %s\n", "", p.insertPath[:max])
 }
 
-func genPath(p []byte, h handleFunc) *path {
+func genPath(p string, h HandleFunc) *path {
 	p2 := &path{}
 	p2.originalPath = p
 	p2.paramAndHandle = make([]*handle, len(p2.originalPath))
 
-	var paramName bytes.Buffer
-	var insertPath bytes.Buffer
+	var paramName strings.Builder
+	var insertPath strings.Builder
 
 	foundParam := false
 	wildcard := false
@@ -104,21 +104,21 @@ func genPath(p []byte, h handleFunc) *path {
 	}
 
 	if insertPath.Len() > 0 {
-		p2.insertPath = insertPath.Bytes()
+		p2.insertPath = insertPath.String()
 	}
 
 	p2.addHandle(insertPath, h)
 	return p2
 }
 
-func (p *path) checkParam(paramName bytes.Buffer) {
+func (p *path) checkParam(paramName strings.Builder) {
 	if paramName.Len() == 0 {
 		panic(fmt.Sprintf("wildcards must be named with a non-empty name in path:%s",
 			p.originalPath))
 	}
 }
 
-func (p *path) addHandle(insertPath bytes.Buffer, h handleFunc) {
+func (p *path) addHandle(insertPath strings.Builder, h HandleFunc) {
 	index := insertPath.Len() - 1
 	if p.paramAndHandle[index] == nil {
 		p.paramAndHandle[index] = &handle{handle: h, path: string(p.originalPath)}
@@ -130,7 +130,7 @@ func (p *path) addHandle(insertPath bytes.Buffer, h handleFunc) {
 	p.paramAndHandle = p.paramAndHandle[:insertPath.Len()]
 }
 
-func (p *path) addParamPath(insertPath, paramName bytes.Buffer) {
+func (p *path) addParamPath(insertPath, paramName strings.Builder) {
 
 	p.paramAndHandle[insertPath.Len()-1] = &handle{paramName: paramName.String()}
 }

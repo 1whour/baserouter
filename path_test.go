@@ -32,7 +32,7 @@ func Test_GenPath_Fail(t *testing.T) {
 
 		assert.Panics(t, func() {
 
-			genPath([]byte(p.path), nil)
+			genPath(p.path, nil)
 		})
 	}
 
@@ -43,8 +43,8 @@ func Test_GenPath(t *testing.T) {
 	for i, p := range []testPathCase{
 		{
 			need: path{
-				originalPath: []byte("/test/:name/last"),
-				insertPath:   []byte("/test/:/last"),
+				originalPath: "/test/:name/last",
+				insertPath:   "/test/:/last",
 			},
 			checkParam: func(paramPath []*handle) bool {
 				param := paramPath[len("/test/")]
@@ -58,8 +58,8 @@ func Test_GenPath(t *testing.T) {
 		},
 		{
 			need: path{
-				originalPath: []byte("/test/*last"),
-				insertPath:   []byte("/test/*"),
+				originalPath: "/test/*last",
+				insertPath:   "/test/*",
 			},
 			checkParam: func(paramPath []*handle) bool {
 				param := paramPath[len("/test/")]
@@ -73,8 +73,8 @@ func Test_GenPath(t *testing.T) {
 		},
 		{
 			need: path{
-				originalPath: []byte("/test/:name/*last"),
-				insertPath:   []byte("/test/:/*"),
+				originalPath: "/test/:name/*last",
+				insertPath:   "/test/:/*",
 			},
 			checkParam: func(paramPath []*handle) bool {
 				param := paramPath[len("/test/")]
