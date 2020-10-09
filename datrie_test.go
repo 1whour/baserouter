@@ -185,7 +185,7 @@ func Test_lookupAndInsertCase3_Param(t *testing.T) {
 			break
 		}
 
-		b = assert.Equal(t, p[0].Value, needVal[k])
+		b = assert.Equal(t, p[0].Value, needVal[k], fmt.Sprintf("lookup key(%s)", needKey))
 		if !b {
 			break
 		}

@@ -9,6 +9,7 @@ type path struct {
 	originalPath   string    //原始路径
 	insertPath     string    //修改后的路径，单个变量变为: 所有变量变为*
 	paramAndHandle []*handle //存放param
+	maxParam       int
 }
 
 func (p *path) debug(max int) {
@@ -19,6 +20,7 @@ func (p *path) debug(max int) {
 	fmt.Printf("insertPath string: %2s %s\n", "", p.insertPath[:max])
 }
 
+// 基于插入是比较少的场景，所以genPath函数没有做性能优化
 func genPath(p string, h HandleFunc) *path {
 	p2 := &path{}
 	p2.originalPath = p
@@ -47,12 +49,14 @@ func genPath(p string, h HandleFunc) *path {
 				if p[i] == ':' {
 					foundParam = true
 					insertPath.WriteString(":")
+					p2.maxParam++
 					continue
 				}
 
 				if p[i] == '*' {
 					wildcard = true
 					insertPath.WriteString("*")
+					p2.maxParam++
 					continue
 				}
 			}

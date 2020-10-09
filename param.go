@@ -7,25 +7,20 @@ type Param struct {
 
 type Params []Param
 
-const maxParams = 255
-
-func getParam() Params {
-
-	return make(Params, 0, 255)
+func (ps Params) ByName(name string) string {
+	for _, p := range ps {
+		if p.Key == name {
+			return p.Value
+		}
+	}
+	return ""
 }
 
 func (p *Params) appendKey(key string) {
-	if *p == nil {
-		*p = getParam()
-	}
 
 	*p = append(*p, Param{Key: key})
 }
 
 func (p *Params) setVal(val string) {
-	if *p == nil {
-		*p = getParam()
-	}
-
 	(*p)[len(*p)-1].Value = val
 }

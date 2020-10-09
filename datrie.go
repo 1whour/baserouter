@@ -2,6 +2,7 @@ package baserouter
 
 import (
 	"fmt"
+	"sync"
 )
 
 type handle struct {
@@ -15,11 +16,14 @@ type datrie struct {
 	check []int
 	tail  []byte
 
-	// 为了支持变量加的结构
+	// 为了支持变量加的元数据
 	baseHandler []*handle
 	head        []int
 	handler     []*handle
 	pos         int
+	path        int //存放保存path个数
+	maxParam    int //最大参数个数
+	paramPool   sync.Pool
 }
 
 // 初始化函数
@@ -79,7 +83,7 @@ func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("base handle %2s %v\n", "", d.baseHandler[:max])
 }
 
-func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *handle, p2 Params) {
+func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *handle, p2 *Params) {
 	start = -start
 	l := d.head[start]
 
@@ -89,6 +93,8 @@ func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *h
 	var c byte
 
 	// i 必然是从0开始算的, l里面存放还有多少字符
+	// i 指向path 变量余下保存在tail里面第一个字符的位置
+	// k + 1 如果这个字符在d.base 和 d.check有记录，余下的才会保存到tail, 所以在path的位置就是k+1
 	for i, j = 0, k+1; i < l; i++ {
 
 		h = d.handler[start+i]
@@ -108,7 +114,7 @@ func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *h
 				break
 			}
 
-			continue //该路径可能还有变量
+			continue //该path可能还有变量
 
 		}
 
@@ -129,44 +135,20 @@ func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *h
 
 	}
 
-	return d.handler[start+l-1], *p
+	return d.handler[start+l-1], p
 }
 
-func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path string, p *Params) (*handle, Params) {
-	foundParam := false
-	wildcard := false
-	maybe := false
-	prevIndex := 0
+func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path string, p *Params) (*handle, *Params) {
 	prevBase := *prevBase2
 	base := *base2
 
-	i := *index
-	for ; i < len(path); i++ {
-		if !foundParam && !wildcard {
-			if path[i] == '/' {
-				maybe = true
-				continue
-			}
-		}
+	var i int
+
+	for i = *index + 1; i < len(path); i++ {
 
 		c := path[i]
 
-		if foundParam {
-
-			if c == '/' {
-				p.setVal(path[prevIndex:i])
-				prevIndex = 0
-				foundParam = false
-				break
-			}
-			continue
-		}
-
-		if wildcard {
-			continue
-		}
-
-		if maybe {
+		if path[i-1] == '/' {
 
 			prevBase = d.base[prevBase] + getCodeOffset('/')
 			base = d.base[prevBase] + getCodeOffset(':')
@@ -174,11 +156,16 @@ func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path string, p *P
 			h := d.baseHandler[base]
 			if h != nil && h.paramName != "" && d.check[base] == prevBase { //找到普通变量
 				prevBase = base
+
 				p.appendKey(h.paramName)
-				prevIndex = i
-				foundParam = true
-				maybe = false
-				continue
+
+				var j int
+				for j = i + 1; j < len(path) && path[j] != '/'; j++ {
+				}
+
+				p.setVal(path[i:j])
+				i = j //TODO 这里会不会有bug?有时间再思考下
+				break
 			}
 
 			base = d.base[prevBase] + getCodeOffset('*')
@@ -186,32 +173,32 @@ func (d *datrie) findBaseHandler(index, prevBase2, base2 *int, path string, p *P
 			if h != nil && h.paramName != "" && d.check[base] == prevBase { //找到贪婪匹配
 				prevBase = base
 				p.appendKey(h.paramName)
-				prevIndex = i
-				wildcard = true
-				maybe = false
-				continue
+				p.setVal(path[i:len(path)])
+				i = len(path)
+				break
 			}
 
 		}
 
 		if c != '/' {
-			return nil, *p
+			return nil, p
 		}
-	}
-
-	if foundParam || wildcard {
-		// i是相对于path的偏移量，所以不需要+k
-		p.setVal(path[prevIndex:i])
 	}
 
 	*index = i
 	*prevBase2 = prevBase
 	*base2 = base
-	return d.baseHandler[base], *p
+	return d.baseHandler[base], p
+}
+
+func (d *datrie) lookup(path string) (h *handle, p Params) {
+	p = make(Params, 0, d.maxParam)
+	h, p2 := d.lookup2(path, &p)
+	return h, *p2
 }
 
 // 查找
-func (d *datrie) lookup(path string) (h *handle, p Params) {
+func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 	prevBase := 1
 	var base int
@@ -219,16 +206,16 @@ func (d *datrie) lookup(path string) (h *handle, p Params) {
 	for k := 0; k < len(path); k++ {
 
 		c := path[k]
-		if c == '/' {
-			_, p = d.findBaseHandler(&k, &prevBase, &base, path, &p)
+		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入findBaseHandler函数
+		if c == '/' && d.path > 1 {
+			_, p = d.findBaseHandler(&k, &prevBase, &base, path, p2)
+			c = path[k]
 		}
-
-		c = path[k]
 
 		base = d.base[prevBase] + getCodeOffset(c)
 
 		if start := d.base[base]; start < 0 && d.check[base] == prevBase {
-			return d.findParamOrWildcard(start, k, path, &p)
+			return d.findParamOrWildcard(start, k, path, p2)
 		}
 
 		if d.check[base] <= 0 {
@@ -406,11 +393,30 @@ func (d *datrie) insertConflict(path string, pos int, prevBase, base int, h Hand
 	d.handler[d.pos] = &handle{handle: h, path: path /*TODO*/}
 }
 
+func (d *datrie) changePool(p *path) {
+	if d.paramPool.New == nil {
+		d.paramPool.New = func() interface{} {
+			p := make(Params, 0, 0)
+			return &p
+		}
+	}
+
+	if p.maxParam > d.maxParam {
+		d.maxParam = p.maxParam
+		d.paramPool.New = func() interface{} {
+			p := make(Params, 0, d.maxParam)
+			return &p
+		}
+	}
+}
+
 // 插入
 func (d *datrie) insert(path string, h HandleFunc) {
+	d.path++
 	prevBase := 1
 
 	p := genPath(path, h)
+	d.changePool(p)
 
 	for pos := 0; pos < len(p.insertPath); pos++ {
 		c := p.insertPath[pos]
@@ -426,7 +432,6 @@ func (d *datrie) insert(path string, h HandleFunc) {
 		}
 
 		if d.check[base] != prevBase {
-			panic("wo kao")
 			d.insertConflict(path, pos, prevBase, d.check[base], h)
 			return
 		}
@@ -466,7 +471,6 @@ func expansion(array *[]int, need int) {
 	a := make([]int, need)
 	copy(a, *array)
 	*array = a
-	panic("hello ")
 }
 
 // 扩容
