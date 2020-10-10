@@ -221,33 +221,36 @@ func Test_lookupAndInsertCase4_Param(t *testing.T) {
 	d := newDatrie()
 	done := 0
 
-	insertWord := []string{"bachelor/:name", "jar/:name", "badge/:name", "body/:name"}
+	insertWord := []string{"/authorizations", "/authorizations/:id", "/repos/:owner/:repo/events"}
 	for _, word := range insertWord {
 		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 
-		//d.debug(64, word, 0, 0, 0)
+		d.debug(64, word, 0, 0, 0)
 		//fmt.Printf("=================\n")
 	}
 
 	lookupPath := []string{
-		"bachelor/aaa",
-		"jar/bbb",
-		"badge/ccc",
-		"body/ddd",
+		"/authorizations",
+		"/authorizations/123",
+		"/repos/antlabs/baserouter/events",
 	}
 
-	needKey := "name"
+	needKeyArr := [][]string{
+		[]string{},
+		[]string{"id"},
+		[]string{"owner", "repo"},
+	}
 
-	needVal := []string{
-		"aaa",
-		"bbb",
-		"ccc",
-		"ddd",
+	needValArr := [][]string{
+		[]string{},
+		[]string{"123"},
+		[]string{"antlabs", "baserouter"},
 	}
 
 	for k, word := range lookupPath {
+
 		h, p := d.lookup(word)
 
 		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
@@ -257,14 +260,18 @@ func Test_lookupAndInsertCase4_Param(t *testing.T) {
 
 		h.handle(nil, nil, nil)
 		assert.Equal(t, done, k+1)
-		b := assert.Equal(t, p[0].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
-		if !b {
-			break
-		}
 
-		b = assert.Equal(t, p[0].Value, needVal[k])
-		if !b {
-			break
+		for index, needKey := range needKeyArr[k] {
+			needVal := needValArr[k]
+			b := assert.Equal(t, p[index].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
+			if !b {
+				break
+			}
+
+			b = assert.Equal(t, p[index].Value, needVal[index], fmt.Sprintf("lookup key(%s)", needKey))
+			if !b {
+				break
+			}
 		}
 	}
 }

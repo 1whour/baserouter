@@ -12,12 +12,18 @@ type path struct {
 	maxParam       int
 }
 
-func (p *path) debug(max int) {
-	fmt.Printf("paramAndHandle: %5s %v\n", "", p.paramAndHandle[:max])
-	fmt.Printf("originalPath bytes: %1s %v\n", "", p.originalPath[:max])
-	fmt.Printf("originalPath string: %0s %s\n", "", p.originalPath[:max])
-	fmt.Printf("insertPath bytes: %3s %v\n", "", p.insertPath[:max])
-	fmt.Printf("insertPath string: %2s %s\n", "", p.insertPath[:max])
+func (p *path) debug() {
+	max := len(p.insertPath)
+	paramMax := max
+	if paramMax < len(p.originalPath) {
+		paramMax = len(p.originalPath)
+	}
+
+	fmt.Printf("(%d) paramAndHandle: %5s %v\n", cap(p.paramAndHandle), "", p.paramAndHandle[:max])
+	fmt.Printf("(%d) originalPath bytes: %1s %v\n", len(p.originalPath), "", p.originalPath[:paramMax])
+	fmt.Printf("(%d) originalPath string: %0s %s\n", len(p.originalPath), "", p.originalPath[:paramMax])
+	fmt.Printf("(%d) insertPath bytes: %3s %v\n", len(p.insertPath), "", p.insertPath[:max])
+	fmt.Printf("(%d) insertPath string: %2s %s\n", len(p.insertPath), "", p.insertPath[:max])
 }
 
 // 基于插入是比较少的场景，所以genPath函数没有做性能优化
