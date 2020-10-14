@@ -227,7 +227,7 @@ func Test_lookupAndInsertCase4_Param(t *testing.T) {
 			done++
 		})
 
-		d.debug(64, word, 0, 0, 0)
+		//d.debug(64, word, 0, 0, 0)
 		//fmt.Printf("=================\n")
 	}
 

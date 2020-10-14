@@ -28,3 +28,11 @@ func TestTable(t *testing.T) {
 
 	assert.Equal(t, len(missing), 0)
 }
+
+func TestOffset(t *testing.T) {
+	for i := 0; i < 256; i++ {
+		offset := getCodeOffset(byte(i))
+		c := getCharFromOffset(offset)
+		assert.Equal(t, byte(i), c)
+	}
+}
