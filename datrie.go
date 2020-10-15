@@ -58,7 +58,7 @@ func (d *datrie) copyHandler(pos int, p *path) {
 }
 
 // 没有冲突
-func (d *datrie) noConflict(pos int, prevIndex int, base int, p *path) {
+func (d *datrie) noConflict(pos int, parentIndex int, base int, p *path) {
 	// pos位置的字符已经放到base里面，所以跳过这个字符，也是这里pos+1的由来
 	path := p.insertPath[pos+1:]
 
@@ -66,7 +66,7 @@ func (d *datrie) noConflict(pos int, prevIndex int, base int, p *path) {
 
 	copy(d.tail[d.pos:], path)
 	d.head[d.pos] = len(path)
-	d.check[base] = prevIndex
+	d.check[base] = parentIndex
 	d.base[base] = -d.pos
 
 	d.copyHandler(pos+1, p)
@@ -89,7 +89,7 @@ func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *h
 	start = -start
 	l := d.head[start]
 
-	prevIndex := 0
+	parentIndex := 0
 
 	var i, j int
 	var c byte
@@ -105,12 +105,12 @@ func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *h
 		if c == ':' && h != nil && h.paramName != "" {
 
 			p.appendKey(h.paramName)
-			prevIndex = j
+			parentIndex = j
 
 			for ; j < len(path) && path[j] != '/'; j++ {
 			}
 
-			p.setVal(path[prevIndex:j])
+			p.setVal(path[parentIndex:j])
 
 			if j == len(path) { // 这是路径里面最后一个变量
 				break
@@ -140,8 +140,8 @@ func (d *datrie) findParamOrWildcard(start, k int, path string, p *Params) (h *h
 	return d.tailHandler[start+l-1], p
 }
 
-func (d *datrie) findBaseHandler(k, prevIndex2, index2 *int, path string, p *Params) (*handle, *Params) {
-	prevIndex := *prevIndex2
+func (d *datrie) findBaseHandler(k, parentIndex2, index2 *int, path string, p *Params) (*handle, *Params) {
+	parentIndex := *parentIndex2
 	index := *index2
 
 	var i int
@@ -152,12 +152,12 @@ func (d *datrie) findBaseHandler(k, prevIndex2, index2 *int, path string, p *Par
 
 		if path[i-1] == '/' {
 
-			prevIndex = d.base[prevIndex] + getCodeOffset('/')
-			index = d.base[prevIndex] + getCodeOffset(':')
+			parentIndex = d.base[parentIndex] + getCodeOffset('/')
+			index = d.base[parentIndex] + getCodeOffset(':')
 
 			h := d.baseHandler[index]
-			if h != nil && h.paramName != "" && d.check[index] == prevIndex { //找到普通变量
-				prevIndex = index
+			if h != nil && h.paramName != "" && d.check[index] == parentIndex { //找到普通变量
+				parentIndex = index
 
 				p.appendKey(h.paramName)
 
@@ -170,10 +170,10 @@ func (d *datrie) findBaseHandler(k, prevIndex2, index2 *int, path string, p *Par
 				break
 			}
 
-			index = d.base[prevIndex] + getCodeOffset('*')
+			index = d.base[parentIndex] + getCodeOffset('*')
 			h = d.baseHandler[index]
-			if h != nil && h.paramName != "" && d.check[index] == prevIndex { //找到贪婪匹配
-				prevIndex = index
+			if h != nil && h.paramName != "" && d.check[index] == parentIndex { //找到贪婪匹配
+				parentIndex = index
 				p.appendKey(h.paramName)
 				p.setVal(path[i:len(path)])
 				i = len(path)
@@ -188,7 +188,7 @@ func (d *datrie) findBaseHandler(k, prevIndex2, index2 *int, path string, p *Par
 	}
 
 	*k = i
-	*prevIndex2 = prevIndex
+	*parentIndex2 = parentIndex
 	*index2 = index
 	return d.baseHandler[index], p
 }
@@ -206,7 +206,7 @@ func (d *datrie) lookup(path string) (h *handle, p Params) {
 // 查找
 func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
-	prevIndex := 1
+	parentIndex := 1
 	var index int
 
 	for k := 0; k < len(path); k++ {
@@ -214,13 +214,16 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 		c := path[k]
 		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入findBaseHandler函数
 		if c == '/' && d.path > 1 {
-			_, p = d.findBaseHandler(&k, &prevIndex, &index, path, p2)
+			_, p = d.findBaseHandler(&k, &parentIndex, &index, path, p2)
 			c = path[k]
 		}
 
-		index = d.base[prevIndex] + getCodeOffset(c)
+		index = d.base[parentIndex] + getCodeOffset(c)
 
-		if start := d.base[index]; start < 0 && d.check[index] == prevIndex {
+		fmt.Printf("path(%s) (%s) index = %d, (%c), d.check[index] = %d, parentIndex:%d, d.base[index] = %d\n",
+			path, path[k:], index, c, d.check[index], parentIndex, d.base[index])
+
+		if start := d.base[index]; start < 0 && d.check[index] == parentIndex {
 			return d.findParamOrWildcard(start, k, path, p2)
 		}
 
@@ -229,7 +232,7 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 			return nil, nil
 		}
 
-		prevIndex = index
+		parentIndex = index
 
 	}
 
@@ -311,8 +314,8 @@ func (d *datrie) samePrefix(pos, start int, base int, p *path) {
 
 		tailPath = tailPath[i+1:]
 	} else {
-		tailPath = tailPath[i:]
 		// 设置为0，在moveTailAndHandler函数里面可以给无效的tail变为?号
+		tailPath = tailPath[i:]
 	}
 
 	// step 9
@@ -338,76 +341,79 @@ func (d *datrie) samePrefix(pos, start int, base int, p *path) {
 	d.pos += len(insertPath[i+1:])
 }
 
-func (d *datrie) findAllNode(prevIndex int) (rv []byte) {
-	for index, checkPrevIndex := range d.check {
-		if checkPrevIndex == prevIndex {
-			// d.base[prevIndex] + offset = index，所以求offset 就是如下
-			offset := index - d.base[prevIndex]
+func (d *datrie) findAllChildNode(parentIndex int) (rv []byte) {
+	for index, checkParentIndex := range d.check {
+		if checkParentIndex == parentIndex {
+			// d.base[parentIndex] + offset = index，所以求offset 就是如下
+			offset := index - d.base[parentIndex]
 			rv = append(rv, getCharFromOffset(offset))
 		}
 	}
 	return
 }
 
-func (d *datrie) selectList(prevIndex, index int) (list []byte, lessIndex, moreIndex int) {
+func (d *datrie) selectList(parentIndex, index int) (list []byte, lessIndex, moreIndex int) {
 	// step 3
-	list1 := d.findAllNode(prevIndex)
-	list2 := d.findAllNode(d.check[index])
+	list1 := d.findAllChildNode(parentIndex)
+	list2 := d.findAllChildNode(d.check[index])
 
 	list = list1
-	lessIndex = prevIndex
+	lessIndex = parentIndex
 	moreIndex = d.check[index]
 	// 取子节点比较少的那个节点
 	if len(list1)+1 > len(list2) {
 		// 已经有的是list1 这里还要加新节点，所以len(list)+1
 		list = list2
 		lessIndex = d.check[index]
-		moreIndex = prevIndex
+		moreIndex = parentIndex
 	}
 
 	return
 }
 
-func (d *datrie) insertConflict(pos int, prevIndex, index int, p *path) {
+func (d *datrie) insertConflict(pos int, parentIndex, index int, p *path) {
 	path := p.insertPath
 	var list []byte
 	tempNode1 := index
 	// step 2
 	if d.check[tempNode1] == 0 {
+		// TODO
 		// 如果d.check[tempNode1] 是0，说明这个节点还没有使用过，直接插入
 		// 然后直接返回
-		// TODO
-		// fmt.Printf(":::::::%d\n", d.check[tempNode1])
 		//return
+		panic("Found not covered")
 	}
 
-	list, lessIndex, moreIndex := d.selectList(prevIndex, index)
+	// 两个爸爸结点parentIndex和d.check[index] 都在抢儿子结点index
+	list, lessIndex, moreIndex := d.selectList(parentIndex, index)
 
 	// step 5
 	tempBase := d.base[lessIndex]
-	q := d.xCheckArray(list)
-	d.base[lessIndex] = q
+	d.base[lessIndex] = d.xCheckArray(list)
 
 	for _, currChar := range list {
 		// step 6 or step 9
 		tempNode1 = tempBase + getCodeOffset(currChar)
 		tempNode2 := d.base[lessIndex] + getCodeOffset(currChar)
+
+		fmt.Printf("currChar(%c) tempNode1 = %d, tempNode2 = %d, base %d <- %d, check %d <- %d\n",
+			currChar, tempNode1, tempNode2, d.base[tempNode2], d.base[tempNode1], d.check[tempNode2], d.check[tempNode1])
+
+		if d.check[tempNode2] != 0 || d.base[tempNode2] != 0 {
+			panic("d.check[tempNode2] != 0 || d.base[tempNode2] != 0")
+		}
+
 		d.base[tempNode2] = d.base[tempNode1]
 		d.check[tempNode2] = d.check[tempNode1]
 
 		d.baseHandler[tempNode2] = d.baseHandler[tempNode1]
 
-		/*
-			fmt.Printf("currChar(%c) tempNode1 = %d, tempNode2 = %d, base %d <- %d, check %d <- %d\n",
-				currChar, tempNode1, tempNode2, d.base[tempNode2], d.base[tempNode1], d.check[tempNode2], d.check[tempNode1])
-		*/
 		// step 7
 		if d.base[tempNode1] > 0 {
-			//fmt.Printf("tempNode1 = %d, path(%s), currChar(%c) check:%d\n", tempNode1, path, currChar, d.check[tempNode1])
-			offset := d.findOffset(tempNode1)
-			d.check[d.base[tempNode1]+offset] = tempNode2
+			d.moveToNewParent(tempNode1, tempNode2)
 		}
 
+		fmt.Printf("d.check[tempNode2] = %d\n", d.check[tempNode2])
 		// step 8 or step 10
 		d.base[tempNode1] = 0
 		d.check[tempNode1] = 0
@@ -419,6 +425,10 @@ func (d *datrie) insertConflict(pos int, prevIndex, index int, p *path) {
 
 	// step 12
 	d.base[tempNode] = -d.pos
+
+	fmt.Printf("(%c), d.pos(%d) list(%s), lessIndex:%d, moreIndex:%d, check[index]:%d, parentIndex:%d, tempNode = %d, d.check[tempNode] = %d\n",
+		list[0], -d.pos, list, lessIndex, moreIndex, d.check[index], parentIndex,
+		tempNode, d.check[tempNode])
 
 	d.check[tempNode] = moreIndex // step 12.2
 
@@ -451,27 +461,27 @@ func (d *datrie) changePool(p *path) {
 // 插入
 func (d *datrie) insert(path string, h HandleFunc) {
 	d.path++
-	prevIndex := 1
+	parentIndex := 1
 
 	p := genPath(path, h)
 	d.changePool(p)
 
 	for pos := 0; pos < len(p.insertPath); pos++ {
 		c := p.insertPath[pos]
-		index := d.base[prevIndex] + getCodeOffset(c)
+		index := d.base[parentIndex] + getCodeOffset(c)
 		if index >= len(d.base) {
 			// 扩容
 			d.expansion(index)
 		}
 
 		if d.check[index] == 0 {
-			d.noConflict(pos, prevIndex, index, p)
+			d.noConflict(pos, parentIndex, index, p)
 			return
 		}
 
 		// 插入的时候冲突，需要修改 父节点或子节点的接续关系
-		if d.check[index] != prevIndex {
-			d.insertConflict(pos, prevIndex, index, p)
+		if d.check[index] != parentIndex {
+			d.insertConflict(pos, parentIndex, index, p)
 			return
 		}
 
@@ -481,7 +491,7 @@ func (d *datrie) insert(path string, h HandleFunc) {
 			return
 		}
 
-		prevIndex = index
+		parentIndex = index
 
 	}
 }
@@ -527,23 +537,26 @@ func (d *datrie) expansion(max int) {
 	d.head = head
 }
 
-func (d *datrie) findOffset(tempNode1 int) (offset int) {
-	// check[base[tempNode1] + offset] == tempNode1
+func (d *datrie) moveToNewParent(oldParent, newParent int) {
+	// check[base[oldParent] + offset] == oldParent
 	// check[i] == tempNode1
-	// offset = i - base[tempNode1]
-	i := 0
-	for i = 0; i < len(d.check); i++ {
+	// offset = i - base[oldParent]
+
+	found := false
+	for i := 0; i < len(d.check); i++ {
 		c := d.check[i]
-		if c == tempNode1 {
+		if c == oldParent {
+			found = true
+			offset := i - d.base[oldParent]
+			d.check[d.base[oldParent]+offset] = newParent
 			break
 		}
 	}
 
-	if i == len(d.check) {
-		panic("not found offset")
+	if !found {
+		//panic(fmt.Sprintf("not found oldParent:%d", oldParent))
 	}
 
-	return i - d.base[tempNode1]
 }
 
 // 找空位置

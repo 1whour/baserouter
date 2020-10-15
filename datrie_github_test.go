@@ -81,12 +81,16 @@ func Test_github_lookupAndInsertCase4_Param(t *testing.T) {
 	}
 
 	for _, word := range insertWord {
+		d.debug(90, word, 0, 0, 0)
+		fmt.Printf("insert start=================\n")
+
 		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
-
 		d.debug(90, word, 0, 0, 0)
-		//fmt.Printf("=================\n")
+
+		fmt.Printf("insert end=================\n")
+
 	}
 
 	lookupPath := []string{
