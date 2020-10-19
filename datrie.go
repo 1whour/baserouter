@@ -223,6 +223,10 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 		fmt.Printf("path(%s) (%s) index = %d, (%c), d.check[index] = %d, parentIndex:%d, d.base[index] = %d\n",
 			path, path[k:], index, c, d.check[index], parentIndex, d.base[index])
 
+		if index >= len(d.base) {
+			return nil, p
+		}
+
 		if start := d.base[index]; start < 0 && d.check[index] == parentIndex {
 			return d.findParamOrWildcard(start, k, path, p2)
 		}
@@ -393,31 +397,31 @@ func (d *datrie) insertConflict(pos int, parentIndex, index int, p *path) {
 
 	for _, currChar := range list {
 		// step 6 or step 9
-		tempNode1 = tempBase + getCodeOffset(currChar)
-		tempNode2 := d.base[lessIndex] + getCodeOffset(currChar)
+		oldNode := tempBase + getCodeOffset(currChar)
+		newNode := d.base[lessIndex] + getCodeOffset(currChar)
 
-		fmt.Printf("currChar(%c) tempNode1 = %d, tempNode2 = %d, base %d <- %d, check %d <- %d\n",
-			currChar, tempNode1, tempNode2, d.base[tempNode2], d.base[tempNode1], d.check[tempNode2], d.check[tempNode1])
+		fmt.Printf("currChar(%c) oldNode = %d, newNode = %d, base %d <- %d, check %d <- %d\n",
+			currChar, oldNode, newNode, d.base[newNode], d.base[oldNode], d.check[newNode], d.check[oldNode])
 
-		if d.check[tempNode2] != 0 || d.base[tempNode2] != 0 {
-			panic("d.check[tempNode2] != 0 || d.base[tempNode2] != 0")
+		if d.check[newNode] != 0 || d.base[newNode] != 0 {
+			panic("d.check[newNode] != 0 || d.base[newNode] != 0")
 		}
 
-		d.base[tempNode2] = d.base[tempNode1]
-		d.check[tempNode2] = d.check[tempNode1]
+		d.base[newNode] = d.base[oldNode]
+		d.check[newNode] = d.check[oldNode]
 
-		d.baseHandler[tempNode2] = d.baseHandler[tempNode1]
+		d.baseHandler[newNode] = d.baseHandler[oldNode]
 
 		// step 7
-		if d.base[tempNode1] > 0 {
-			d.moveToNewParent(tempNode1, tempNode2)
+		if d.base[oldNode] > 0 {
+			d.moveToNewParent(oldNode, newNode)
 		}
 
-		fmt.Printf("d.check[tempNode2] = %d\n", d.check[tempNode2])
+		fmt.Printf("d.check[newNode] = %d\n", d.check[newNode])
 		// step 8 or step 10
-		d.base[tempNode1] = 0
-		d.check[tempNode1] = 0
-		d.baseHandler[tempNode1] = nil
+		d.base[oldNode] = 0
+		d.check[oldNode] = 0
+		d.baseHandler[oldNode] = nil
 	}
 
 	// step 11
@@ -485,9 +489,9 @@ func (d *datrie) insert(path string, h HandleFunc) {
 			return
 		}
 
-		if start := d.base[index]; start < 0 {
+		if tailPos := d.base[index]; tailPos < 0 {
 			// start 小于0，说明有共同前缀
-			d.samePrefix(pos, start, index, p)
+			d.samePrefix(pos, tailPos, index, p)
 			return
 		}
 
