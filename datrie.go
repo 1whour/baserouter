@@ -246,14 +246,13 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 }
 
 // case3 step 8 or 10
-func (d *datrie) baseAndCheck(base int, c byte, tail int) {
+func (d *datrie) baseAndCheck(parentIndex int, c byte, tail int) {
 	q := d.xCheck(c)
-	d.base[base] = q
-	nextBase := d.base[base] + getCodeOffset(c)
+	d.base[parentIndex] = q
+	index := d.base[parentIndex] + getCodeOffset(c)
 
-	//fmt.Printf("baseAndCheck->base %d, %c, check:%d\n", base, c, d.check[base])
-	d.base[nextBase] = -tail
-	d.check[nextBase] = base //指向它的爸爸索引
+	d.base[index] = -tail
+	d.check[index] = parentIndex //指向它的爸爸索引
 }
 
 // step 9
@@ -271,7 +270,7 @@ func (d *datrie) moveTailAndHandler(temp int, tailPath []byte) {
 }
 
 // 共同前缀冲突
-func (d *datrie) samePrefix(pos, tailPos int, base int, p *path) {
+func (d *datrie) samePrefix(pos, tailPos int, parentIndex int, p *path) {
 	path := p.insertPath
 	tailPos = -tailPos
 	l := d.head[tailPos]
@@ -292,16 +291,15 @@ func (d *datrie) samePrefix(pos, tailPos int, base int, p *path) {
 	// 处理相同前缀, step 5
 	for ; i < len(insertPath) && i < len(tailPath) && insertPath[i] == tailPath[i]; i++ {
 		c := insertPath[i]
-		q := d.xCheck(c) //找出可以跳转的位置 , case3 step 5.
-		d.base[base] = q //修改老的跳转位置, case3 step 6.
+		q := d.xCheck(c)        //找出可以跳转的位置 , case3 step 5.
+		d.base[parentIndex] = q //修改老的跳转位置, case3 step 6.
 
-		nextBase := d.base[base] + getCodeOffset(c)
-		d.check[nextBase] = base
-		//fmt.Printf("c = %c, d.base[base] = %d, q = %d, nextBase:%d, d.check = %d\n", c, d.base[base], q, nextBase, d.check[nextBase])
-		base = nextBase
+		index := d.base[parentIndex] + getCodeOffset(c)
+		d.check[index] = parentIndex
+		parentIndex = index
 
 		if d.tailHandler[tailPos+i] != nil {
-			d.baseHandler[base] = d.tailHandler[tailPos+i]
+			d.baseHandler[parentIndex] = d.tailHandler[tailPos+i]
 		}
 
 	}
@@ -310,13 +308,13 @@ func (d *datrie) samePrefix(pos, tailPos int, base int, p *path) {
 		// 处理不同前缀, step 7
 		// 找一个没有冲突的parent node的位置
 		q := d.xCheckTwo(insertPath[i], tailPath[i])
-		d.base[base] = q
+		d.base[parentIndex] = q
 	}
 
 	// 开始处理tail 中没有共同前缀的字符串
 	if i < len(tailPath) {
 		// step 8
-		d.baseAndCheck(base, tailPath[i], temp)
+		d.baseAndCheck(parentIndex, tailPath[i], temp)
 
 		tailPath = tailPath[i+1:]
 	} else {
@@ -330,7 +328,7 @@ func (d *datrie) samePrefix(pos, tailPos int, base int, p *path) {
 	// 开始处理insertPath 中没有共同前缀的字符串
 	d.setTailAndHandler(insertPath[i+1:])
 	// step 10
-	d.baseAndCheck(base, insertPath[i], d.pos)
+	d.baseAndCheck(parentIndex, insertPath[i], d.pos)
 
 	copy(d.tail[d.pos:], insertPath[i+1:])
 	d.head[d.pos] = len(insertPath[i+1:])
