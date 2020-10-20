@@ -269,16 +269,41 @@ func (d *datrie) moveTailAndHandler(temp int, tailPath []byte) {
 	d.head[temp] = len(tailPath)
 }
 
+func (d *datrie) changeSamePrefix(parentIndex int, tailPos int, insertPath string, tailPath []byte) (i, pIndex int) {
+	for ; i < len(insertPath) && i < len(tailPath) && insertPath[i] == tailPath[i]; i++ {
+		c := insertPath[i]
+		// 原有的字符在tail数组里面，现在要拖到d.base
+		// 先计算一个没有冲突的位置 case3 step 5.
+		q := d.xCheck(c)
+		// 修改老的跳转基地址, case3 step 6.
+		d.base[parentIndex] = q
+		// 计算c要保存的位置
+		index := d.base[parentIndex] + getCodeOffset(c)
+		// 记录index的爸爸位置(爸爸都是放到check数组里面的)
+		d.check[index] = parentIndex
+		// 更新游标
+		parentIndex = index
+
+		// 说有保存了handle不是param就是这个路径的handle
+		if d.tailHandler[tailPos+i] != nil {
+			d.baseHandler[parentIndex] = d.tailHandler[tailPos+i]
+		}
+
+	}
+	pIndex = parentIndex
+	return
+}
+
 // 共同前缀冲突
 func (d *datrie) samePrefix(pos, tailPos int, parentIndex int, p *path) {
 	path := p.insertPath
-	tailPos = -tailPos
 	l := d.head[tailPos]
 	temp := tailPos //step 4
 
 	if path[pos:] == BytesToString(d.tail[tailPos:tailPos+l]) {
 		// 重复数据插入, 前缀一样
-		// TODO, 选择策略 替换，还是panic
+		// TODO, 选择策略 替换，还是panic,
+		// TODO 测试变量不一样的情况 /:name/hello /:name/word 这种直接panic
 		return
 	}
 
@@ -287,29 +312,8 @@ func (d *datrie) samePrefix(pos, tailPos int, parentIndex int, p *path) {
 	insertPath := path[pos:]
 	tailPath := d.tail[tailPos : tailPos+l]
 
-	i := 0
 	// 处理相同前缀, step 5
-	for ; i < len(insertPath) && i < len(tailPath) && insertPath[i] == tailPath[i]; i++ {
-		c := insertPath[i]
-		q := d.xCheck(c)        //找出可以跳转的位置 , case3 step 5.
-		d.base[parentIndex] = q //修改老的跳转位置, case3 step 6.
-
-		index := d.base[parentIndex] + getCodeOffset(c)
-		d.check[index] = parentIndex
-		parentIndex = index
-
-		if d.tailHandler[tailPos+i] != nil {
-			d.baseHandler[parentIndex] = d.tailHandler[tailPos+i]
-		}
-
-	}
-
-	if i < len(insertPath) && i < len(tailPath) {
-		// 处理不同前缀, step 7
-		// 找一个没有冲突的parent node的位置
-		q := d.xCheckTwo(insertPath[i], tailPath[i])
-		d.base[parentIndex] = q
-	}
+	i, parentIndex := d.changeSamePrefix(parentIndex, tailPos, insertPath, tailPath)
 
 	// 开始处理tail 中没有共同前缀的字符串
 	if i < len(tailPath) {
@@ -344,6 +348,7 @@ func (d *datrie) findAllChildNode(parentIndex int) (rv []byte) {
 		if checkParentIndex == parentIndex {
 			// d.base[parentIndex] + offset = index，所以求offset 就是如下
 			offset := index - d.base[parentIndex]
+			fmt.Printf("index:%d, d.base[parentIndex]:%d\n", index, d.base[parentIndex])
 			rv = append(rv, getCharFromOffset(offset))
 		}
 	}
@@ -460,7 +465,7 @@ func (d *datrie) insert(path string, h HandleFunc) {
 
 		if tailPos := d.base[index]; tailPos < 0 {
 			// start 小于0，说明有共同前缀
-			d.samePrefix(pos, tailPos, index, p)
+			d.samePrefix(pos, -tailPos, index, p)
 			return
 		}
 
@@ -543,16 +548,6 @@ func (d *datrie) xCheckArray(arr []byte) (q int) {
 			continue
 		}
 		i++
-	}
-
-	return q
-}
-
-// 找空位置
-func (d *datrie) xCheckTwo(c1, c2 byte) (q int) {
-	q = 2
-	for d.check[q+getCodeOffset(c1)] != 0 || d.check[q+getCodeOffset(c2)] != 0 {
-		q++
 	}
 
 	return q

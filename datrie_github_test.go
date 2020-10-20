@@ -18,7 +18,7 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 		"/teams/:id/repos/:owner/:repo",
 		"/repos/:owner/:repo/pulls/:number/files",
 		"/repos/:owner/:repo/pulls/:number/merge",
-		"/repos/:owner/:repo/pulls/:number/comments",
+		//"/repos/:owner/:repo/pulls/:number/comments",
 	}
 	for _, word := range insertWord {
 		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
@@ -34,7 +34,7 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 		"/teams/antlabs-aaa/repos/guonaihong/baserouter-aaa",
 		"/repos/guonaihong/baserouter/pulls/1/files",
 		"/repos/NaihongGuo/deepcopy/pulls/2/merge",
-		"/repos/guonh/timer/pulls/3/comments",
+		//"/repos/guonh/timer/pulls/3/comments",
 	}
 
 	needKeyArr := [][]string{
@@ -42,7 +42,7 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 		[]string{"id", "owner", "repo"},
 		[]string{"owner", "repo", "number"},
 		[]string{"owner", "repo", "number"},
-		[]string{"owner", "repo", "number"},
+		//[]string{"owner", "repo", "number"},
 	}
 
 	needValArr := [][]string{
@@ -50,7 +50,7 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 		[]string{"antlabs-aaa", "guonaihong", "baserouter-aaa"},
 		[]string{"guonaihong", "baserouter", "1"},
 		[]string{"NaihongGuo", "deepcopy", "2"},
-		[]string{"guonh", "timer", "3"},
+		//[]string{"guonh", "timer", "3"},
 	}
 
 	for k, word := range lookupPath {
