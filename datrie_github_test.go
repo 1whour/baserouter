@@ -16,8 +16,8 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 	insertWord := []string{
 		"/teams/:id/repos",
 		"/teams/:id/repos/:owner/:repo",
-		"/repos/:owner/:repo/pulls/:number/files",
-		"/repos/:owner/:repo/pulls/:number/merge",
+		//"/repos/:owner/:repo/pulls/:number/files",
+		//"/repos/:owner/:repo/pulls/:number/merge",
 		//"/repos/:owner/:repo/pulls/:number/comments",
 	}
 	for _, word := range insertWord {
@@ -25,23 +25,23 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 			done++
 		})
 
-		//d.debug(90, word, 0, 0, 0)
+		d.debug(90, word, 0, 0, 0)
 		//fmt.Printf("=================\n")
 	}
 
 	lookupPath := []string{
 		"/teams/antlabs/repos",
 		"/teams/antlabs-aaa/repos/guonaihong/baserouter-aaa",
-		"/repos/guonaihong/baserouter/pulls/1/files",
-		"/repos/NaihongGuo/deepcopy/pulls/2/merge",
+		//"/repos/guonaihong/baserouter/pulls/1/files",
+		//"/repos/NaihongGuo/deepcopy/pulls/2/merge",
 		//"/repos/guonh/timer/pulls/3/comments",
 	}
 
 	needKeyArr := [][]string{
 		[]string{"id"},
 		[]string{"id", "owner", "repo"},
-		[]string{"owner", "repo", "number"},
-		[]string{"owner", "repo", "number"},
+		//[]string{"owner", "repo", "number"},
+		//[]string{"owner", "repo", "number"},
 		//[]string{"owner", "repo", "number"},
 	}
 
