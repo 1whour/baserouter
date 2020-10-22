@@ -102,16 +102,16 @@ func (d *datrie) copyHandler(pos int, p *path) {
 }
 
 // 没有冲突
-func (d *datrie) noConflict(pos int, parentIndex int, index int, p *path) {
+func (d *datrie) noConflict(insertPos int, parentIndex int, index int, p *path) {
 	// pos位置的字符已经放到base里面，所以跳过这个字符，也是这里pos+1的由来
-	path := p.insertPath[pos+1:]
+	path := p.insertPath[insertPos:]
 
 	d.copyTail(d.pos, path)
 	d.head[d.pos] = len(path)
 	d.setCheck(index, parentIndex)
 	d.setBase(index, -d.pos)
 
-	d.copyHandler(pos+1, p)
+	d.copyHandler(insertPos, p)
 	d.pos += len(path)
 }
 
@@ -261,20 +261,18 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 		index = d.base[parentIndex] + getCodeOffset(c)
 
-		/*
-			fmt.Printf("path(%s) (%s) index = %d, (%c), d.check[index] = %d, parentIndex:%d, d.base[index] = %d\n",
-				path, path[k:], index, c, d.check[index], parentIndex, d.base[index])
-		*/
-
 		if index >= len(d.base) {
 			return nil, p
 		}
 
 		if tailPos := d.base[index]; tailPos < 0 && d.check[index] == parentIndex {
+			if d.head[-tailPos] == 0 && k+1 == len(path) {
+				break
+			}
+
 			return d.findParamOrWildcard(-tailPos, k, path, p2)
 		}
 
-		//fmt.Printf("index = %d, d.check[index] = %d, d.base[index] = %d, %c\n", index, d.check[index], d.base[index], c)
 		if d.check[index] <= 0 {
 			return nil, nil
 		}
@@ -289,7 +287,6 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 // case3 step 8 or 10
 func (d *datrie) baseAndCheck(parentIndex int, c byte, tailPos int) {
 	q := d.xCheck(c)
-	fmt.Printf("parentIndex:%d, q = %d\n", parentIndex, q)
 	d.setBase(parentIndex, q)
 	if d.check[parentIndex] != 0 {
 		panic(fmt.Sprintf("baseAndCheck: d.check[parentIndex] %d:parentIndex(%d)", d.check[parentIndex], parentIndex))
@@ -316,37 +313,39 @@ func (d *datrie) moveTailAndHandler(tailPos int, tailPath []byte) {
 	d.head[tailPos] = len(tailPath)
 }
 
-func (d *datrie) changeSamePrefix(parentIndex int, tailPos int, insertPath string, tailPath []byte) (i, pIndex int, have bool) {
-	if i < len(insertPath) && i < len(tailPath) && insertPath[i] == tailPath[i] {
-		c := tailPath[i]
-		// 原有的字符在tail数组里面，现在要拖到d.base
-		// 先计算一个没有冲突的位置 case3 step 5.
-		q := d.xCheck(c)
-		// 修改老的跳转基地址, case3 step 6.
-		d.setBase(parentIndex, q)
-		// 计算c要保存的位置
-		index := d.base[parentIndex] + getCodeOffset(c)
-		// 记录index的爸爸位置(爸爸都是放到check数组里面的)
-		d.setCheck(index, parentIndex)
+func (d *datrie) setTail(c byte, q int, tailPos int, parentIndex int, tailPath []byte, tailHandler []*handle) {
+	// 修改老的跳转基地址, case3 step 6.
+	d.setBase(parentIndex, q)
+	// 计算c要保存的位置
+	index := d.base[parentIndex] + getCodeOffset(c)
+	// 记录index的爸爸位置(爸爸都是放到check数组里面的)
+	d.setCheck(index, parentIndex)
 
-		// 保存了handle 可能是param 或者就是这个路径的handle
-		if d.tailHandler[tailPos+i] != nil {
-			d.baseHandler[index] = d.tailHandler[tailPos+i]
-		}
-
-		// 清理老的head
-		d.head[tailPos] = 0
-		d.setBase(index, -(len(tailPath) - 1))
-		//TODO new head
-
-		return i + 1, parentIndex, true
+	// 保存了handle 可能是param 或者就是这个路径的handle
+	// TODO check param key是否一样，不一样直接报错
+	if d.tailHandler[tailPos] != nil {
+		d.baseHandler[index] = d.tailHandler[tailPos]
 	}
 
-	return
+	// 移动tail的字符往前面移动,无效字符使用?代替
+	if len(tailPath) > 0 {
+		copy(tailPath, tailPath[1:])
+		copy(tailHandler, tailHandler[1:])
+		tailPath[len(tailPath)-1] = '?'
+		tailHandler[len(tailHandler)-1] = nil
+	}
+
+	d.setBase(index, -tailPos)
+	d.head[tailPos] = len(tailPath) - 1
 }
 
 // 共同前缀冲突
-func (d *datrie) samePrefix(insertPos, tailPos int, parentIndex int, p *path) (pIndex int, next bool) {
+// 有4中情况，
+// 1.重复插入, tail里面和insertPath里面是一样的
+// 2.tail里面是短的，insertPath里面是长的，tail被包含至insertPath
+// 3.tail里面是长的，insertPath里面是短的，tail包含insertPath
+// 4.tail和insertPath，有共同前缀，有一个节点分叉出来，引出不同的边长
+func (d *datrie) samePrefix(insertPos, tailPos int, parentIndex int, p *path) (next bool) {
 	path := p.insertPath
 	l := d.head[tailPos]
 
@@ -361,42 +360,37 @@ func (d *datrie) samePrefix(insertPos, tailPos int, parentIndex int, p *path) (p
 
 	insertPath := path[insertPos:]
 	tailPath := d.tail[tailPos : tailPos+l]
-	fmt.Printf("(%s)(%c)(%c)(%c) insertPos(%d), p.insertPath[insertPos]=%c\n", p.insertPath,
-		insertPath[0], tailPath[0], path[tailPos], insertPos, p.insertPath[insertPos])
+	tailHandler := d.tailHandler[tailPos : tailPos+l]
 
-	// 处理相同前缀, step 5
-	i, parentIndex, have := d.changeSamePrefix(parentIndex, tailPos, insertPath, tailPath)
-	if have {
-		return parentIndex, true
+	// 处理相同前缀
+	if len(insertPath) > 0 && len(tailPath) > 0 && insertPath[0] == tailPath[0] {
+		c := tailPath[0]
+		// 原有的字符在tail数组里面，现在要拖到d.base
+		// 先计算一个没有冲突的位置 case3 step 5.
+		q := d.xCheck(c)
+
+		d.setTail(c, q, tailPos, parentIndex, tailPath, tailHandler)
+		return true
 	}
 
-	// 1.开始处理tail 中没有共同前缀的字符串
-	if i < len(tailPath) {
-		// base, check
-		d.baseAndCheck(parentIndex, tailPath[i], tailPos)
-
-		tailPath = tailPath[i+1:]
-	} else {
-		// 设置为0，在moveTailAndHandler函数里面可以给无效的tail变为?号
-		tailPath = tailPath[i:]
+	// 处理下没有的共同前缀,
+	//　主要是情况2, 4, 情况3走不到这里
+	list := append([]byte{}, insertPath[0])
+	if len(tailPath) > 0 {
+		list = append(list, tailPath[0])
 	}
 
-	// step 9 tail, handler and set head
-	d.moveTailAndHandler(tailPos, tailPath)
+	q := d.xCheckArray(list)
 
-	// 2.开始处理insertPath 中没有共同前缀的字符串
-	// base, check
-	d.baseAndCheck(parentIndex, insertPath[i], d.pos)
-	// tail
-	d.copyTail(d.pos, insertPath[i+1:])
-	// handler
-	d.copyHandler(i+1+insertPos, p)
-	// head
-	d.head[d.pos] = len(insertPath[i+1:])
-	// i是相对于insertPath 加上pos就是相当于对于path, 最后+ 1就是跳过当前字符
+	oldTailPos := d.base[parentIndex]
+	d.base[parentIndex] = q
+	if len(list) > 1 { //tailPath
+		d.setTail(list[1], q, -oldTailPos, parentIndex, tailPath, tailHandler)
+	}
 
-	d.pos += len(insertPath[i+1:])
-	return
+	index := d.base[parentIndex] + getCodeOffset(list[0])
+	d.noConflict(insertPos+1, parentIndex, index, p)
+	return false
 }
 
 func (d *datrie) findAllChildNode(parentIndex int) (rv []byte) {
@@ -404,7 +398,6 @@ func (d *datrie) findAllChildNode(parentIndex int) (rv []byte) {
 		if checkParentIndex == parentIndex {
 			// d.base[parentIndex] + offset = index，所以求offset 就是如下
 			offset := index - d.base[parentIndex]
-			fmt.Printf("index:%d, d.base[parentIndex]:%d\n", index, d.base[parentIndex])
 			rv = append(rv, getCharFromOffset(offset))
 		}
 	}
@@ -434,7 +427,7 @@ func (d *datrie) resetNode(index int) {
 	d.baseHandler[index] = nil
 }
 
-func (d *datrie) insertConflict(pos int, parentIndex, index int, p *path) {
+func (d *datrie) insertConflict(insertPos int, parentIndex, index int, p *path) {
 	var list []byte
 
 	// 两个爸爸结点parentIndex和d.check[index] 都在抢儿子结点index
@@ -466,8 +459,8 @@ func (d *datrie) insertConflict(pos int, parentIndex, index int, p *path) {
 		d.resetNode(oldNode)
 	}
 
-	index = d.base[parentIndex] + getCodeOffset(p.insertPath[pos])
-	d.noConflict(pos, parentIndex, index, p)
+	index = d.base[parentIndex] + getCodeOffset(p.insertPath[insertPos])
+	d.noConflict(insertPos+1, parentIndex, index, p)
 }
 
 func (d *datrie) changePool(p *path) {
@@ -504,7 +497,7 @@ func (d *datrie) insert(path string, h HandleFunc) {
 		}
 
 		if d.check[index] == 0 {
-			d.noConflict(pos, parentIndex, index, p)
+			d.noConflict(pos+1, parentIndex, index, p)
 			return
 		}
 
@@ -514,15 +507,12 @@ func (d *datrie) insert(path string, h HandleFunc) {
 			return
 		}
 
-		fmt.Printf("loop, p.insertPath(%s), parentIndex = %d, noConflict:%c, c(%c):pos(%d), %d\n", p.insertPath, parentIndex, p.insertPath[pos], c, pos, d.base[index])
 		if tailPos := d.base[index]; tailPos < 0 {
 			// tailPos 小于0，说明有共同前缀
-			pIndex, next := d.samePrefix(pos, -tailPos, index, p)
+			next := d.samePrefix(pos, -tailPos, index, p)
 			if !next {
 				return
 			}
-			parentIndex = pIndex
-			continue
 		}
 
 		parentIndex = index

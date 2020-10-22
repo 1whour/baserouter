@@ -48,34 +48,42 @@ func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
 	needValArr := [][]string{
 		[]string{"antlabs"},
 		[]string{"antlabs-aaa", "guonaihong", "baserouter-aaa"},
-		[]string{"guonaihong", "baserouter", "1"},
-		[]string{"NaihongGuo", "deepcopy", "2"},
+		//[]string{"guonaihong", "baserouter", "1"},
+		//[]string{"NaihongGuo", "deepcopy", "2"},
 		//[]string{"guonh", "timer", "3"},
 	}
 
 	for k, word := range lookupPath {
 
-		h, p := d.lookup(word)
+		cb := func() {
+			h, p := d.lookup(word)
 
-		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
-		if h == nil {
-			return
+			assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
+			if h == nil {
+				return
+			}
+
+			h.handle(nil, nil, nil)
+			assert.Equal(t, done, k+1)
+
+			for index, needKey := range needKeyArr[k] {
+				needVal := needValArr[k]
+				fmt.Printf("%v\n", p)
+				b := assert.Equal(t, p[index].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
+				if !b {
+					break
+				}
+
+				b = assert.Equal(t, p[index].Value, needVal[index], fmt.Sprintf("lookup key(%s)", needKey))
+				if !b {
+					break
+				}
+			}
 		}
 
-		h.handle(nil, nil, nil)
-		assert.Equal(t, done, k+1)
-
-		for index, needKey := range needKeyArr[k] {
-			needVal := needValArr[k]
-			b := assert.Equal(t, p[index].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
-			if !b {
-				break
-			}
-
-			b = assert.Equal(t, p[index].Value, needVal[index], fmt.Sprintf("lookup key(%s)", needKey))
-			if !b {
-				break
-			}
+		b := assert.NotPanics(t, cb, fmt.Sprintf("search word:%s", word))
+		if !b {
+			break
 		}
 	}
 }
