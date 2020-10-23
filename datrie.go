@@ -79,17 +79,19 @@ func (d *datrie) noConflict(insertPos int, parentIndex int, index int, p *path) 
 	// pos位置的字符已经放到base里面，所以跳过这个字符，也是这里pos+1的由来
 	path := p.insertPath[insertPos:]
 
-	b := &base{q: -1, tailPath: path, tailHandler: p.paramAndHandle[insertPos:]}
+	last := len(p.paramAndHandle) - 1
+
+	b := &base{q: -1, tailPath: path, tailHandler: p.paramAndHandle[insertPos:], handle: p.paramAndHandle[last]}
 	d.setCheck(index, parentIndex)
 	d.setBase(index, b)
 
-	d.debug(64, "", 0, 0, 0)
+	d.debug(64, "noConflict", 0, insertPos, 0)
 
 	p.debug()
 }
 
-func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
-	fmt.Printf("\n#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
+func (d *datrie) debug(max int, insertWord string, index, insertPos, base int) {
+	fmt.Printf("\n#word(%s) index(%d) insertPos(%d) base(%d)\n", insertWord, index, insertPos, base)
 	fmt.Printf("base %9s ", "")
 	for _, v := range d.base[:max] {
 		fmt.Printf("(%v)  ", v)
@@ -147,29 +149,6 @@ func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle
 	return b.tailHandler[len(b.tailHandler)-1], p
 }
 
-func (d *datrie) findBaseParamOrWildcard(b *base, k *int, path string, p *Params) (*handle, *Params) {
-	var i int
-
-	h := b.handle
-
-	p.appendKey(h.paramName)
-
-	if h.wildcard { //通配符号
-		p.setVal(path[i:len(path)])
-		*k = len(path)
-		return b.handle, p
-	}
-
-	var j int
-	for j = i; j < len(path) && path[j] != '/'; j++ {
-	}
-
-	p.setVal(path[i:j])
-	*k = j //TODO 这里会不会有bug?有时间再思考下
-
-	return b.handle, p
-}
-
 func (d *datrie) lookup(path string) (h *handle, p Params) {
 	p = make(Params, 0, d.maxParam)
 	h, p2 := d.lookup2(path, &p)
@@ -199,17 +178,29 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 		b := d.base[index]
 		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入findBaseParamOrWildcard函数
-		for b != nil && b.handle != nil && d.check[index] == parentIndex && d.path > 1 {
-			oldK := k
-			h, p = d.findBaseParamOrWildcard(b, &k, path, p2)
-			if k == len(path) {
-				return
-			}
-			c = path[k]
+		if b != nil && b.handle != nil && d.check[index] == parentIndex && d.path > 1 {
 
-			if oldK == k {
-				break
+			h := b.handle
+
+			i := k + 1
+			p2.appendKey(h.paramName)
+
+			if h.wildcard { //通配符号
+				p.setVal(path[i:len(path)])
+				return b.handle, p2
 			}
+
+			var j int
+			for j = i; j < len(path) && path[j] != '/'; j++ {
+			}
+
+			p2.setVal(path[i:j])
+
+			if k == len(path) {
+				return h, p2
+			}
+			fmt.Printf("p2:%v:%s\n", p2, path[k:])
+
 		}
 
 		if b := d.base[index]; b != nil && b.q < 0 && d.check[index] == parentIndex {
@@ -258,6 +249,8 @@ func (d *datrie) setTail(c byte, q int, parentIndex int, p *path) {
 	if len(oldBase.tailPath) > 0 {
 		newBase.tailPath = oldBase.tailPath[1:]
 		newBase.tailHandler = oldBase.tailHandler[1:]
+		oldBase.tailPath = string(oldBase.tailPath[0])
+		oldBase.tailHandler = oldBase.tailHandler[0:1]
 	}
 
 	newBase.q = -1
