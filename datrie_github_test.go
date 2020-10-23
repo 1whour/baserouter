@@ -1,238 +1,166 @@
 package baserouter
 
 import (
-	"fmt"
-	"net/http"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
-func Test_github_lookupAndInsertCase3_Param0(t *testing.T) {
-	d := newDatrie()
-	done := 0
-
-	//insertWord := []string{"/authorizations/:id", "/applications/:client_id/tokens"}
-	insertWord := []string{
-		"/teams/:id/repos",
-		"/teams/:id/repos/:owner/:repo",
-		//"/repos/:owner/:repo/pulls/:number/files",
-		//"/repos/:owner/:repo/pulls/:number/merge",
-		//"/repos/:owner/:repo/pulls/:number/comments",
-	}
-	for _, word := range insertWord {
-		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
-			done++
-		})
-
-		d.debug(90, word, 0, 0, 0)
-		//fmt.Printf("=================\n")
-	}
-
-	lookupPath := []string{
-		"/teams/antlabs/repos",
-		"/teams/antlabs-aaa/repos/guonaihong/baserouter-aaa",
-		//"/repos/guonaihong/baserouter/pulls/1/files",
-		//"/repos/NaihongGuo/deepcopy/pulls/2/merge",
-		//"/repos/guonh/timer/pulls/3/comments",
-	}
-
-	needKeyArr := [][]string{
-		[]string{"id"},
-		[]string{"id", "owner", "repo"},
-		//[]string{"owner", "repo", "number"},
-		//[]string{"owner", "repo", "number"},
-		//[]string{"owner", "repo", "number"},
+func Test_github_lookupAndInsertCase3_Param1(t *testing.T) {
+	tc := testCases{
+		{
+			insertPath: "/teams/:id/repos",
+			lookupPath: "/teams/antlabs/repos",
+			paramKey:   []string{"id"},
+			paramValue: []string{"antlabs"},
+		},
+		{
+			insertPath: "/teams/:id/repos/:owner/:repo",
+			lookupPath: "/teams/antlabs-aaa/repos/guonaihong/baserouter-aaa",
+			paramKey:   []string{"id", "owner", "repo"},
+			paramValue: []string{"antlabs-aaa", "guonaihong", "baserouter-aaa"},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/pulls/:number/files",
+			lookupPath: "/repos/guonaihong/baserouter/pulls/1/files",
+			paramKey:   []string{"owner", "repo", "number"},
+			paramValue: []string{"guonaihong", "baserouter", "1"}},
+		{
+			insertPath: "/repos/:owner/:repo/pulls/:number/merge",
+			lookupPath: "/repos/NaihongGuo/deepcopy/pulls/2/merge",
+			paramKey:   []string{"owner", "repo", "number"},
+			paramValue: []string{"NaihongGuo", "deepcopy", "2"}},
+		{
+			insertPath: "/repos/:owner/:repo/pulls/:number/comments",
+			lookupPath: "/repos/guonh/timer/pulls/3/comments",
+			paramKey:   []string{"owner", "repo", "number"},
+			paramValue: []string{"guonh", "timer", "3"},
+		},
 	}
 
-	needValArr := [][]string{
-		[]string{"antlabs"},
-		[]string{"antlabs-aaa", "guonaihong", "baserouter-aaa"},
-		//[]string{"guonaihong", "baserouter", "1"},
-		//[]string{"NaihongGuo", "deepcopy", "2"},
-		//[]string{"guonh", "timer", "3"},
-	}
-
-	for k, word := range lookupPath {
-
-		cb := func() {
-			h, p := d.lookup(word)
-
-			assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
-			if h == nil {
-				return
-			}
-
-			h.handle(nil, nil, nil)
-			assert.Equal(t, done, k+1)
-
-			for index, needKey := range needKeyArr[k] {
-				needVal := needValArr[k]
-				fmt.Printf("%v\n", p)
-				b := assert.Equal(t, p[index].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
-				if !b {
-					break
-				}
-
-				b = assert.Equal(t, p[index].Value, needVal[index], fmt.Sprintf("lookup key(%s)", needKey))
-				if !b {
-					break
-				}
-			}
-		}
-
-		b := assert.NotPanics(t, cb, fmt.Sprintf("search word:%s", word))
-		if !b {
-			break
-		}
-	}
+	tc.run(t)
 }
 
-func Test_github_lookupAndInsertCase3_Param1(t *testing.T) {
-	d := newDatrie()
-	done := 0
+func Test_github_lookupAndInsertCase3_Param2(t *testing.T) {
 
-	//insertWord := []string{"/authorizations/:id", "/applications/:client_id/tokens"}
-	insertWord := []string{"/authorizations/:id", "/applications/:client_id/tokens", "/applications/:client_id/tokens/:access_token"}
-	for _, word := range insertWord {
-		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
-			done++
-		})
-
-		//d.debug(90, word, 0, 0, 0)
-		//fmt.Printf("=================\n")
+	tc := testCases{
+		{
+			insertPath: "/teams/:id",
+			lookupPath: "/teams/antlabs",
+			paramKey:   []string{"id"},
+			paramValue: []string{"antlabs"},
+		},
+		{
+			insertPath: "/teams/:id/members/:user",
+			lookupPath: "/teams/antlabs/members/guonaihong",
+			paramKey:   []string{"id", "user"},
+			paramValue: []string{"antlabs", "guonaihong"},
+		},
 	}
 
-	lookupPath := []string{
-		"/authorizations/12",
-		"/applications/client_id-aaa/tokens",
-		"/applications/client_id-bbb/tokens/access_token-aaa",
+	tc.run(t)
+}
+
+func Test_github_lookupAndInsertCase3_Param3(t *testing.T) {
+	tc := testCases{
+		{
+			insertPath: "/authorizations/:id",
+			lookupPath: "/authorizations/12",
+			paramKey:   []string{"id"},
+			paramValue: []string{"12"},
+		},
+		{
+			insertPath: "/applications/:client_id/tokens",
+			lookupPath: "/applications/client_id-aaa/tokens",
+			paramKey:   []string{"client_id"},
+			paramValue: []string{"client_id-aaa"},
+		},
+		{
+			insertPath: "/applications/:client_id/tokens/:access_token",
+			lookupPath: "/applications/client_id-bbb/tokens/access_token-aaa",
+			paramKey:   []string{"client_id", "access_token"},
+			paramValue: []string{"client_id-bbb", "access_token-aaa"},
+		},
 	}
 
-	needKeyArr := [][]string{
-		[]string{"id"},
-		[]string{"client_id"},
-		[]string{"client_id", "access_token"},
+	tc.run(t)
+}
+
+func Test_github_lookupAndInsertCase3_Param4(t *testing.T) {
+	tc := testCases{
+		{
+			insertPath: "/repos/:owner/:repo/commits/:what/comments",
+			lookupPath: "/repos/guonaihong/baserouter/commits/wokao/comments",
+			paramKey:   []string{"owner", "repo", "what"},
+			paramValue: []string{"guonaihong", "baserouter", "wokao"},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/commits/:what",
+			lookupPath: "/repos/guonaihong/baserouter/commits/wokao",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
 	}
 
-	needValArr := [][]string{
-		[]string{"12"},
-		[]string{"client_id-aaa"},
-		[]string{"client_id-bbb", "access_token-aaa"},
-	}
-
-	for k, word := range lookupPath {
-
-		h, p := d.lookup(word)
-
-		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
-		if h == nil {
-			return
-		}
-
-		h.handle(nil, nil, nil)
-		assert.Equal(t, done, k+1)
-
-		for index, needKey := range needKeyArr[k] {
-			needVal := needValArr[k]
-			b := assert.Equal(t, p[index].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
-			if !b {
-				break
-			}
-
-			b = assert.Equal(t, p[index].Value, needVal[index], fmt.Sprintf("lookup key(%s)", needKey))
-			if !b {
-				break
-			}
-		}
-	}
+	tc.run(t)
 }
 
 func Test_github_lookupAndInsertCase4_Param(t *testing.T) {
-	d := newDatrie()
-	done := 0
-
-	insertWord := []string{
-		"/authorizations",
-		"/authorizations/:id",
-		"/applications/:client_id/tokens/:access_token",
-		"/repos/:owner/:repo/events",
-		"/orgs/:org/events",
+	tc := testCases{
+		{
+			insertPath: "/authorizations",
+			lookupPath: "/authorizations",
+			paramKey:   []string{""},
+			paramValue: []string{""},
+		},
+		{
+			insertPath: "/authorizations/:id",
+			lookupPath: "/authorizations/12",
+			paramKey:   []string{"id"},
+			paramValue: []string{"12"},
+		},
+		{
+			insertPath: "/applications/:client_id/tokens/:access_token",
+			lookupPath: "/applications/client_id-bbb/tokens/access_token-aaa",
+			paramKey:   []string{"client_id", "access_token"},
+			paramValue: []string{"client_id-bbb", "access_token-aaa"},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/events",
+			lookupPath: "/repos/guonaihong/baserouter/events",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
+		{
+			insertPath: "/orgs/:org/events",
+			lookupPath: "/orgs/antlabs/events",
+			paramKey:   []string{"org"},
+			paramValue: []string{"antlabs"},
+		},
 	}
 
-	for _, word := range insertWord {
-		/*
-			d.debug(90, word, 0, 0, 0)
-			fmt.Printf("insert start=================\n")
-		*/
+	tc.run(t)
+}
 
-		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
-			done++
-		})
-		/*
-			d.debug(90, word, 0, 0, 0)
-
-			fmt.Printf("insert end=================\n")
-		*/
-
+func Test_github_lookupAndInsertCase4_Param1(t *testing.T) {
+	tc := testCases{
+		{
+			insertPath: "/authorizations",
+			lookupPath: "/authorizations",
+			paramKey:   []string{""},
+			paramValue: []string{""},
+		},
+		{
+			insertPath: "/authorizations/:id",
+			lookupPath: "/authorizations/123",
+			paramKey:   []string{"id"},
+			paramValue: []string{"123"},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/events",
+			lookupPath: "/repos/antlabs/baserouter/events",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"antlabs", "baserouter"},
+		},
 	}
 
-	lookupPath := []string{
-		"/authorizations",
-		"/authorizations/12",
-		"/applications/client_id-bbb/tokens/access_token-aaa",
-		"/repos/guonaihong/baserouter/events",
-		"/orgs/antlabs/events",
-	}
-
-	needKeyArr := [][]string{
-		[]string{""},
-		[]string{"id"},
-		[]string{"client_id", "access_token"},
-		[]string{"owner", "repo"},
-		[]string{"org"},
-	}
-
-	needValArr := [][]string{
-		[]string{""},
-		[]string{"12"},
-		[]string{"client_id-bbb", "access_token-aaa"},
-		[]string{"guonaihong", "baserouter"},
-		[]string{"antlabs"},
-	}
-
-	for k, word := range lookupPath {
-
-		h, p := d.lookup(word)
-
-		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
-		if h == nil {
-			return
-		}
-
-		h.handle(nil, nil, nil)
-		assert.Equal(t, done, k+1)
-
-		if len(p) == 0 {
-			fmt.Printf("search word(%s),k = %d\n", word, k)
-		}
-
-		for index, needKey := range needKeyArr[k] {
-			if len(needKey) == 0 {
-				fmt.Printf("index = %d, needKey = 0\n", k)
-				continue
-			}
-
-			needVal := needValArr[k]
-			b := assert.Equal(t, p[index].Key, needKey, fmt.Sprintf("lookup key(%s)", needKey))
-			if !b {
-				break
-			}
-
-			b = assert.Equal(t, p[index].Value, needVal[index], fmt.Sprintf("lookup key(%s)", needKey))
-			if !b {
-				break
-			}
-		}
-	}
+	tc.run(t)
 }

@@ -59,7 +59,7 @@ func Test_GenPath(t *testing.T) {
 		{
 			need: path{
 				originalPath: "/test/*last",
-				insertPath:   "/test/*",
+				insertPath:   "/test/:",
 			},
 			checkParam: func(paramPath []*handle) bool {
 				param := paramPath[len("/test/")]
@@ -74,7 +74,7 @@ func Test_GenPath(t *testing.T) {
 		{
 			need: path{
 				originalPath: "/test/:name/*last",
-				insertPath:   "/test/:/*",
+				insertPath:   "/test/:/:",
 			},
 			checkParam: func(paramPath []*handle) bool {
 				param := paramPath[len("/test/")]

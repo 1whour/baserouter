@@ -61,7 +61,7 @@ func genPath(p string, h HandleFunc) *path {
 
 				if p[i] == '*' {
 					wildcard = true
-					insertPath.WriteString("*")
+					insertPath.WriteString(":")
 					p2.maxParam++
 					continue
 				}
@@ -85,7 +85,7 @@ func genPath(p string, h HandleFunc) *path {
 
 				p2.checkParam(paramName)
 
-				p2.addParamPath(insertPath, paramName)
+				p2.addParamPath(insertPath, paramName, false)
 
 				insertPath.WriteByte('/')
 
@@ -105,12 +105,12 @@ func genPath(p string, h HandleFunc) *path {
 
 		p2.checkParam(paramName)
 
-		p2.addParamPath(insertPath, paramName)
+		p2.addParamPath(insertPath, paramName, wildcard)
 	}
 
 	if foundParam {
 		p2.checkParam(paramName)
-		p2.addParamPath(insertPath, paramName)
+		p2.addParamPath(insertPath, paramName, false)
 	}
 
 	if insertPath.Len() > 0 {
@@ -140,7 +140,7 @@ func (p *path) addHandle(insertPath strings.Builder, h HandleFunc) {
 	p.paramAndHandle = p.paramAndHandle[:insertPath.Len()]
 }
 
-func (p *path) addParamPath(insertPath, paramName strings.Builder) {
+func (p *path) addParamPath(insertPath, paramName strings.Builder, wildcard bool) {
 
-	p.paramAndHandle[insertPath.Len()-1] = &handle{paramName: paramName.String()}
+	p.paramAndHandle[insertPath.Len()-1] = &handle{paramName: paramName.String(), wildcard: wildcard}
 }
