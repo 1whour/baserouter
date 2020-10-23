@@ -12,48 +12,53 @@ type handle struct {
 	wildcard  bool
 }
 
-type datrie struct {
-	base  []int
-	check []int
-	tail  []byte
-
-	// 为了支持变量加的元数据
-	baseHandler []*handle
-	head        []int
+type base struct {
+	q           int //基地址
+	tailPath    string
 	tailHandler []*handle
-	pos         int
-	path        int //存放保存path个数
-	maxParam    int //最大参数个数
-	paramPool   sync.Pool
+	handle      *handle
+}
+
+type datrie struct {
+	base  []*base
+	check []int //保存爸爸在索引
+
+	path      int //存放保存path个数
+	maxParam  int //最大参数个数
+	paramPool sync.Pool
 }
 
 // 初始化函数
 func newDatrie() *datrie {
 	d := &datrie{
-		base:        make([]int, 1024),
-		check:       make([]int, 1024),
-		tail:        make([]byte, 1024),
-		head:        make([]int, 1024),
-		baseHandler: make([]*handle, 1024),
-		tailHandler: make([]*handle, 1024),
+		base:  make([]*base, 1024),
+		check: make([]int, 1024),
 	}
 
-	d.base[0] = 1
-	d.pos = 1
+	d.base[0] = &base{q: 1}
+	d.base[1] = &base{}
 	return d
 }
 
 func (d *datrie) expansionBase(index int) {
 	if index >= len(d.base) {
-		newBase := make([]int, 2*index)
+		newBase := make([]*base, 2*index)
 		copy(newBase, d.base)
 		d.base = newBase
 	}
 }
 
-func (d *datrie) setBase(index int, baseValue int) {
+func (d *datrie) setBase(index int, b *base) {
 	d.expansionBase(index)
-	d.base[index] = baseValue
+	d.base[index] = b
+}
+
+func (d *datrie) getBase(index int) *base {
+	d.expansionBase(index)
+	if d.base[index] == nil {
+		d.base[index] = &base{}
+	}
+	return d.base[index]
 }
 
 func (d *datrie) expansionCheck(index int) {
@@ -69,82 +74,33 @@ func (d *datrie) setCheck(index int, parentIndex int) {
 	d.check[index] = parentIndex
 }
 
-func (d *datrie) expansionTail(pos int, needLen int) {
-	if cap(d.tail[pos:]) < needLen {
-		newTail := make([]byte, (len(d.tail)-pos+needLen)*2)
-		copy(newTail, d.tail)
-		d.tail = newTail
-	}
-}
-
-func (d *datrie) copyTail(pos int, tail string) {
-	d.expansionTail(pos, len(tail))
-	copy(d.tail[pos:], tail)
-}
-
-func (d *datrie) copyTailBytes(pos int, tail []byte) {
-	d.expansionTail(pos, len(tail))
-	copy(d.tail[pos:], tail)
-}
-
-// 拷贝handle
-// pos 是相对于insertPath的偏移量
-func (d *datrie) copyHandler(pos int, p *path) {
-	// 为了tail, head, tailHandler末端对齐， i < len(p.insertPath) - pos ，这里不是等于，原因看下图
-	// tail test/word/:
-	// tail byte      [0 116 101 115 116 47 119 111 114 100 47 58 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-	// head           [0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0]
-	// tail handle    [<nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> <nil> 0xc0000132f0]
-	//p.debug()
-
-	for i := 0; i < len(p.insertPath)-pos; i++ {
-		d.tailHandler[d.pos+i] = p.paramAndHandle[pos+i]
-	}
-}
-
 // 没有冲突
 func (d *datrie) noConflict(insertPos int, parentIndex int, index int, p *path) {
 	// pos位置的字符已经放到base里面，所以跳过这个字符，也是这里pos+1的由来
 	path := p.insertPath[insertPos:]
 
-	d.copyTail(d.pos, path)
-	d.head[d.pos] = len(path)
+	b := &base{q: -1, tailPath: path, tailHandler: p.paramAndHandle[insertPos:]}
 	d.setCheck(index, parentIndex)
-	d.setBase(index, -d.pos)
-
-	d.copyHandler(insertPos, p)
-	d.pos += len(path)
+	d.setBase(index, b)
 }
 
 func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("\n#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
 	fmt.Printf("base %9s %v\n", "", d.base[:max])
 	fmt.Printf("check %8s %v\n", "", d.check[:max])
-	fmt.Printf("tail %9s %s\n", "", d.tail[:max])
-	fmt.Printf("tail byte %4s %v\n", "", d.tail[:max])
-	fmt.Printf("head %9s %v\n", "", d.head[:max])
-	fmt.Printf("tail handle %2s %v\n", "", d.tailHandler[:max])
-	fmt.Printf("base handle %2s %v\n", "", d.baseHandler[:max])
-	fmt.Printf("pos  %9s %d\n", "", d.pos)
 }
 
-func (d *datrie) findTailParamOrWildcard(tailPos, k int, path string, p *Params) (h *handle, p2 *Params) {
-	l := d.head[tailPos]
+func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle, p2 *Params) {
 
 	parentIndex := 0
 
 	var i, j int
-	var c byte
 
-	// i 必然是从0开始算的, l里面存放还有多少字符
-	// i 指向path 变量余下保存在tail里面第一个字符的位置
-	// k + 1 如果这个字符在d.base 和 d.check有记录，余下的才会保存到tail, 所以在path的位置就是k+1
-	for i, j = 0, k+1; i < l; i++ {
+	for i, j = 0, 0; i < len(b.tailPath); i++ {
 
-		h = d.tailHandler[tailPos+i]
-		c = d.tail[tailPos+i]
+		h = b.tailHandler[i]
 
-		if c == ':' && h != nil && h.paramName != "" {
+		if h != nil && h.paramName != "" {
 
 			if h.wildcard { //通配符
 				p.appendKey(h.paramName)
@@ -170,7 +126,7 @@ func (d *datrie) findTailParamOrWildcard(tailPos, k int, path string, p *Params)
 		}
 
 		if j < len(path) {
-			if path[j] != d.tail[tailPos+i] {
+			if path[j] != b.tailPath[i] {
 				return nil, nil
 			}
 		}
@@ -179,56 +135,30 @@ func (d *datrie) findTailParamOrWildcard(tailPos, k int, path string, p *Params)
 
 	}
 
-	return d.tailHandler[tailPos+l-1], p
+	return b.tailHandler[len(b.tailHandler)-1], p
 }
 
-func (d *datrie) findBaseParamOrWildcard(k, parentIndex2, index2 *int, path string, p *Params) (*handle, *Params) {
-	parentIndex := *parentIndex2
-	index := *index2
-
+func (d *datrie) findBaseParamOrWildcard(b *base, k *int, path string, p *Params) (*handle, *Params) {
 	var i int
 
-	for i = *k + 1; i < len(path); i++ {
+	h := b.handle
 
-		c := path[i]
+	p.appendKey(h.paramName)
 
-		if path[i-1] == '/' {
-
-			parentIndex = d.base[parentIndex] + getCodeOffset('/')
-			index = d.base[parentIndex] + getCodeOffset(':')
-
-			h := d.baseHandler[index]
-			if h != nil && h.paramName != "" && d.check[index] == parentIndex { //找到普通变量
-				parentIndex = index
-
-				p.appendKey(h.paramName)
-
-				if h.wildcard { //通配符号
-					p.setVal(path[i:len(path)])
-					i = len(path)
-					break
-				}
-
-				var j int
-				for j = i + 1; j < len(path) && path[j] != '/'; j++ {
-				}
-
-				p.setVal(path[i:j])
-				i = j //TODO 这里会不会有bug?有时间再思考下
-				break
-			}
-
-		}
-
-		if c != '/' {
-			return nil, p
-		}
+	if h.wildcard { //通配符号
+		p.setVal(path[i:len(path)])
+		*k = len(path)
+		return b.handle, p
 	}
 
-	*k = i
-	*parentIndex2 = parentIndex
-	*index2 = index
-	return d.baseHandler[index], p
+	var j int
+	for j = i; j < len(path) && path[j] != '/'; j++ {
+	}
+
+	p.setVal(path[i:j])
+	*k = j //TODO 这里会不会有bug?有时间再思考下
+
+	return b.handle, p
 }
 
 func (d *datrie) lookup(path string) (h *handle, p Params) {
@@ -247,13 +177,22 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 	parentIndex := 1
 	var index int
 
+	var b *base
 	for k := 0; k < len(path); k++ {
 
 		c := path[k]
+
+		index = d.base[parentIndex].q + getCodeOffset(c)
+
+		if index >= len(d.base) {
+			return nil, p
+		}
+
+		b := d.base[index]
 		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入findBaseParamOrWildcard函数
-		for c == '/' && d.path > 1 {
+		for b != nil && b.handle != nil && d.check[index] == parentIndex && d.path > 1 {
 			oldK := k
-			h, p = d.findBaseParamOrWildcard(&k, &parentIndex, &index, path, p2)
+			h, p = d.findBaseParamOrWildcard(b, &k, path, p2)
 			if k == len(path) {
 				return
 			}
@@ -264,18 +203,14 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 			}
 		}
 
-		index = d.base[parentIndex] + getCodeOffset(c)
+		if b := d.base[index]; b != nil && b.q < 0 && d.check[index] == parentIndex {
+			/*
+				if d.head[-tailPos] == 0 && k+1 == len(path) {
+					break
+				}
+			*/
 
-		if index >= len(d.base) {
-			return nil, p
-		}
-
-		if tailPos := d.base[index]; tailPos < 0 && d.check[index] == parentIndex {
-			if d.head[-tailPos] == 0 && k+1 == len(path) {
-				break
-			}
-
-			return d.findTailParamOrWildcard(-tailPos, k, path, p2)
+			return d.findParamOrWildcard(b, path, p2)
 		}
 
 		if d.check[index] <= 0 {
@@ -286,62 +221,37 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 	}
 
-	return d.baseHandler[index], p
-}
-
-// case3 step 8 or 10
-func (d *datrie) baseAndCheck(parentIndex int, c byte, tailPos int) {
-	q := d.xCheck(c)
-	d.setBase(parentIndex, q)
-	if d.check[parentIndex] != 0 {
-		panic(fmt.Sprintf("baseAndCheck: d.check[parentIndex] %d:parentIndex(%d)", d.check[parentIndex], parentIndex))
+	if b != nil {
+		return b.handle, p
 	}
 
-	index := d.base[parentIndex] + getCodeOffset(c)
-
-	d.setBase(index, -tailPos)
-	d.setCheck(index, parentIndex) //指向它的爸爸索引
+	return nil, p
 }
 
-// step 9
-func (d *datrie) moveTailAndHandler(tailPos int, tailPath []byte) {
-	//copy(d.tail[tailPos:], tailPath) //移动字符串
-	d.copyTailBytes(tailPos, tailPath)
-	// 总长度(tailPos+d.head[tailPos])-实际长度(len(tailPath)) = 新的需要插入的位置
-	copy(d.tailHandler[tailPos:], d.tailHandler[tailPos+d.head[tailPos]-len(tailPath):tailPos+d.head[tailPos]])
-
-	for i := len(tailPath); i < d.head[tailPos]; i++ {
-		d.tail[tailPos+i] = '?'
-		d.tailHandler[tailPos+i] = nil
-	}
-
-	d.head[tailPos] = len(tailPath)
-}
-
-func (d *datrie) setTail(c byte, q int, tailPos int, parentIndex int, tailPath []byte, tailHandler []*handle, p *path) {
+func (d *datrie) setTail(c byte, q int, parentIndex int, p *path) {
 	// 修改老的跳转基地址, case3 step 6.
-	d.setBase(parentIndex, q)
+	oldBase := d.getBase(parentIndex)
+
+	oldBase.q = q
+
 	// 计算c要保存的位置
-	index := d.base[parentIndex] + getCodeOffset(c)
+	index := d.base[parentIndex].q + getCodeOffset(c)
 	// 记录index的爸爸位置(爸爸都是放到check数组里面的)
 	d.setCheck(index, parentIndex)
 
+	newBase := d.getBase(index)
 	// 保存了handle 可能是param 或者就是这个路径的handle
-	// TODO check param key是否一样，不一样直接报错
-	if d.tailHandler[tailPos] != nil {
-		d.baseHandler[index] = d.tailHandler[tailPos]
+	if len(oldBase.tailHandler) > 0 {
+		newBase.handle = oldBase.tailHandler[0]
 	}
 
 	// 移动tail的字符往前面移动,无效字符使用?代替
-	if len(tailPath) > 0 {
-		copy(tailPath, tailPath[1:])
-		copy(tailHandler, tailHandler[1:])
-		tailPath[len(tailPath)-1] = '?'
-		tailHandler[len(tailHandler)-1] = nil
+	if len(oldBase.tailPath) > 0 {
+		newBase.tailPath = oldBase.tailPath[1:]
+		newBase.tailHandler = oldBase.tailHandler[1:]
 	}
 
-	d.setBase(index, -tailPos)
-	d.head[tailPos] = len(tailPath) - 1
+	newBase.q = -1
 }
 
 // 共同前缀冲突
@@ -350,11 +260,10 @@ func (d *datrie) setTail(c byte, q int, tailPos int, parentIndex int, tailPath [
 // 2.tail里面是短的，insertPath里面是长的，tail被包含至insertPath
 // 3.tail里面是长的，insertPath里面是短的，tail包含insertPath
 // 4.tail和insertPath，有共同前缀，有一个节点分叉出来，引出不同的边长
-func (d *datrie) samePrefix(insertPos, tailPos int, parentIndex int, p *path) (next bool) {
+func (d *datrie) samePrefix(b *base, insertPos, parentIndex int, p *path) (next bool) {
 	path := p.insertPath
-	l := d.head[tailPos]
 
-	if path[insertPos:] == BytesToString(d.tail[tailPos:tailPos+l]) {
+	if path[insertPos:] == b.tailPath {
 		// 重复数据插入, 前缀一样
 		// TODO, 选择策略 替换，还是panic,
 		// TODO 测试变量不一样的情况 /:name/hello /:name/word 这种直接panic
@@ -364,28 +273,27 @@ func (d *datrie) samePrefix(insertPos, tailPos int, parentIndex int, p *path) (n
 	insertPos++ //路过一个字符
 
 	insertPath := path[insertPos:]
-	tailPath := d.tail[tailPos : tailPos+l]
-	tailHandler := d.tailHandler[tailPos : tailPos+l]
 
 	// 处理相同前缀
-	if len(insertPath) > 0 && len(tailPath) > 0 && insertPath[0] == tailPath[0] {
-		c := tailPath[0]
+	if len(insertPath) > 0 && len(b.tailPath) > 0 && insertPath[0] == b.tailPath[0] {
+		c := b.tailPath[0]
 		// 原有的字符在tail数组里面，现在要拖到d.base
 		// 先计算一个没有冲突的位置 case3 step 5.
 		q := d.xCheck(c)
 
-		d.setTail(c, q, tailPos, parentIndex, tailPath, tailHandler, p)
+		d.setTail(c, q, parentIndex, p)
 		return true
 	}
 
-	d.diff(insertPos, insertPath, tailPath, parentIndex, tailHandler, p)
+	d.diff(b, insertPos, insertPath, parentIndex, p)
 	return false
 }
 
-func (d *datrie) diff(insertPos int, insertPath string, tailPath []byte, parentIndex int, tailHandler []*handle, p *path) {
+func (d *datrie) diff(oldBase *base, insertPos int, insertPath string, parentIndex int, p *path) {
 	// 处理下没有的共同前缀,
 	//　主要是情况2, 3, 4
 	var list []byte
+	tailPath := oldBase.tailPath
 	if len(insertPath) > 0 {
 		list = append(list, insertPath[0])
 	}
@@ -396,14 +304,13 @@ func (d *datrie) diff(insertPos int, insertPath string, tailPath []byte, parentI
 
 	q := d.xCheckArray(list)
 
-	oldTailPos := d.base[parentIndex]
-	d.base[parentIndex] = q
+	d.base[parentIndex].q = q
 	if len(tailPath) > 1 { //tailPath
-		d.setTail(tailPath[0], q, -oldTailPos, parentIndex, tailPath, tailHandler, p)
+		d.setTail(tailPath[0], q, parentIndex, p)
 	}
 
 	if len(insertPath) > 0 {
-		index := d.base[parentIndex] + getCodeOffset(insertPath[0])
+		index := d.base[parentIndex].q + getCodeOffset(insertPath[0])
 		d.noConflict(insertPos+1, parentIndex, index, p)
 	}
 }
@@ -412,7 +319,7 @@ func (d *datrie) findAllChildNode(parentIndex int) (rv []byte) {
 	for index, checkParentIndex := range d.check {
 		if checkParentIndex == parentIndex {
 			// d.base[parentIndex] + offset = index，所以求offset 就是如下
-			offset := index - d.base[parentIndex]
+			offset := index - d.base[parentIndex].q
 			rv = append(rv, getCharFromOffset(offset))
 		}
 	}
@@ -437,9 +344,8 @@ func (d *datrie) selectList(parentIndex, index int) (list []byte, lessIndex int)
 }
 
 func (d *datrie) resetNode(index int) {
-	d.base[index] = 0
+	d.base[index] = nil
 	d.check[index] = 0
-	d.baseHandler[index] = nil
 }
 
 func (d *datrie) insertConflict(insertPos int, parentIndex, index int, p *path) {
@@ -450,20 +356,18 @@ func (d *datrie) insertConflict(insertPos int, parentIndex, index int, p *path) 
 
 	// step 5
 	tempBase := d.base[lessIndex]
-	d.base[lessIndex] = d.xCheckArray(list)
+	d.base[lessIndex].q = d.xCheckArray(list)
 
 	for _, c := range list {
 		// step 6 or step 9
-		oldNode := tempBase + getCodeOffset(c)
-		newNode := d.base[lessIndex] + getCodeOffset(c)
+		oldNode := tempBase.q + getCodeOffset(c)
+		newNode := d.base[lessIndex].q + getCodeOffset(c)
 
 		d.setBase(newNode, d.base[oldNode])
 		d.setCheck(newNode, d.check[oldNode])
 
-		d.baseHandler[newNode] = d.baseHandler[oldNode]
-
 		// step 7
-		if d.base[oldNode] > 0 {
+		if d.base[oldNode] != nil && d.base[oldNode].q > 0 {
 			d.moveToNewParent(oldNode, newNode)
 		}
 
@@ -474,7 +378,7 @@ func (d *datrie) insertConflict(insertPos int, parentIndex, index int, p *path) 
 		d.resetNode(oldNode)
 	}
 
-	index = d.base[parentIndex] + getCodeOffset(p.insertPath[insertPos])
+	index = d.base[parentIndex].q + getCodeOffset(p.insertPath[insertPos])
 	d.noConflict(insertPos+1, parentIndex, index, p)
 }
 
@@ -501,13 +405,13 @@ func (d *datrie) insert(path string, h HandleFunc) {
 	parentIndex := 1
 
 	p := genPath(path, h)
-	p.debug()
+	//p.debug()
 
 	d.changePool(p)
 
 	for pos := 0; pos < len(p.insertPath); pos++ {
 		c := p.insertPath[pos]
-		index := d.base[parentIndex] + getCodeOffset(c)
+		index := d.base[parentIndex].q + getCodeOffset(c)
 		if index >= len(d.base) {
 			// 扩容
 			d.expansion(index)
@@ -524,9 +428,9 @@ func (d *datrie) insert(path string, h HandleFunc) {
 			return
 		}
 
-		if tailPos := d.base[index]; tailPos < 0 {
+		if b := d.base[index]; b.q < 0 {
 			// tailPos 小于0，说明有共同前缀
-			next := d.samePrefix(pos, -tailPos, index, p)
+			next := d.samePrefix(b, pos, index, p)
 			if !next {
 				return
 			}
@@ -537,7 +441,13 @@ func (d *datrie) insert(path string, h HandleFunc) {
 	}
 }
 
-func expansion(array *[]int, need int) {
+func expansion(array *[]*base, need int) {
+	a := make([]*base, need)
+	copy(a, *array)
+	*array = a
+}
+
+func expansionInt(array *[]int, need int) {
 	a := make([]int, need)
 	copy(a, *array)
 	*array = a
@@ -551,11 +461,8 @@ func (d *datrie) expansion(max int) {
 	}
 
 	expansion(&d.base, need)
-	expansion(&d.check, need)
+	expansionInt(&d.check, need)
 
-	head := make([]int, need)
-	copy(head, d.head)
-	d.head = head
 }
 
 func (d *datrie) moveToNewParent(oldParent, newParent int) {
@@ -568,8 +475,8 @@ func (d *datrie) moveToNewParent(oldParent, newParent int) {
 		c := d.check[i]
 		if c == oldParent {
 			found = true
-			offset := i - d.base[oldParent]
-			d.setCheck(d.base[oldParent]+offset, newParent)
+			offset := i - d.base[oldParent].q
+			d.setCheck(d.base[oldParent].q+offset, newParent)
 			break
 		}
 	}
