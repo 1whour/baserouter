@@ -13,15 +13,15 @@ type handle struct {
 }
 
 type base struct {
-	q           int //基地址
-	tailPath    string
+	q           int    //基地址
+	tailPath    string //保存的末部字符串
 	tailHandler []*handle
 	handle      *handle
 }
 
 type datrie struct {
 	base  []*base
-	check []int //保存爸爸在索引
+	check []int //保存爸爸的索引
 
 	path      int //存放保存path个数
 	maxParam  int //最大参数个数
@@ -82,11 +82,20 @@ func (d *datrie) noConflict(insertPos int, parentIndex int, index int, p *path) 
 	b := &base{q: -1, tailPath: path, tailHandler: p.paramAndHandle[insertPos:]}
 	d.setCheck(index, parentIndex)
 	d.setBase(index, b)
+
+	d.debug(64, "", 0, 0, 0)
+
+	p.debug()
 }
 
 func (d *datrie) debug(max int, insertWord string, index, offset, base int) {
 	fmt.Printf("\n#word(%s) index(%d) offset(%d) base(%d)\n", insertWord, index, offset, base)
-	fmt.Printf("base %9s %v\n", "", d.base[:max])
+	fmt.Printf("base %9s ", "")
+	for _, v := range d.base[:max] {
+		fmt.Printf("(%v)  ", v)
+	}
+
+	fmt.Printf("\n")
 	fmt.Printf("check %8s %v\n", "", d.check[:max])
 }
 
@@ -210,7 +219,7 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 				}
 			*/
 
-			return d.findParamOrWildcard(b, path, p2)
+			return d.findParamOrWildcard(b, path[k+1:], p2)
 		}
 
 		if d.check[index] <= 0 {

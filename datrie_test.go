@@ -42,12 +42,13 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 	done := 0
 
 	insertPath := []string{"/test/word/:name", "/get/word/*name"}
+
 	for _, word := range insertPath {
 		d.insert(word, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
 
-		//d.debug(20, word, 0, 0, 0)
+		d.debug(20, word, 0, 0, 0)
 	}
 
 	lookupPath := []string{
