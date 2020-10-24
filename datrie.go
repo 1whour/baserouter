@@ -2,6 +2,7 @@ package baserouter
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 )
 
@@ -17,6 +18,20 @@ type base struct {
 	tailPath    string //保存的末部字符串
 	tailHandler []*handle
 	handle      *handle
+}
+
+func (b *base) String() string {
+	if b == nil {
+		return "<nil>"
+	}
+
+	var o strings.Builder
+	fmt.Fprintf(&o, "address = %p ", b)
+	fmt.Fprintf(&o, "q = %d ", b.q)
+	fmt.Fprintf(&o, "tailPath = %s ", b.tailPath)
+	fmt.Fprintf(&o, "tailHandler = %v ", b.tailHandler)
+	fmt.Fprintf(&o, "handle = %v ", b.handle)
+	return o.String()
 }
 
 type datrie struct {
@@ -94,7 +109,7 @@ func (d *datrie) debug(max int, insertWord string, index, insertPos, base int) {
 	fmt.Printf("\n#word(%s) index(%d) insertPos(%d) base(%d)\n", insertWord, index, insertPos, base)
 	fmt.Printf("base %9s ", "")
 	for _, v := range d.base[:max] {
-		fmt.Printf("(%v)  ", v)
+		fmt.Printf("[%v]  ", v)
 	}
 
 	fmt.Printf("\n")
@@ -178,7 +193,7 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 		b := d.base[index]
 		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入findBaseParamOrWildcard函数
-		if b != nil && b.handle != nil && d.check[index] == parentIndex && d.path > 1 {
+		if b != nil && b.q > 0 && b.handle != nil && d.check[index] == parentIndex && d.path > 1 {
 
 			h := b.handle
 
@@ -196,10 +211,10 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 			p2.setVal(path[i:j])
 
-			if k == len(path) {
+			if j == len(path) {
 				return h, p2
 			}
-			fmt.Printf("p2:%v:%s\n", p2, path[k:])
+			fmt.Printf("------->Param:(%v):path(%s), base:(%v) handle:(%v), handle:(%p)\n", p2, path[k:], b, b.handle, b.handle)
 
 		}
 
@@ -251,6 +266,7 @@ func (d *datrie) setTail(c byte, q int, parentIndex int, p *path) {
 		newBase.tailHandler = oldBase.tailHandler[1:]
 		oldBase.tailPath = string(oldBase.tailPath[0])
 		oldBase.tailHandler = oldBase.tailHandler[0:1]
+		oldBase.handle = oldBase.tailHandler[0]
 	}
 
 	newBase.q = -1
