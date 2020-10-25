@@ -21,11 +21,11 @@ func (tcs *testCases) run(t *testing.T) {
 	d := newDatrie()
 	done := 0
 
-	for index, tc := range *tcs {
+	for _, tc := range *tcs {
 		d.insert(tc.insertPath, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
-		d.debug(80, tc.insertPath, index, 0, 0)
+		d.debug(80, tc.insertPath, 0, 0, 0)
 	}
 
 	for k, tc := range *tcs {

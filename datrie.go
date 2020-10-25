@@ -99,21 +99,29 @@ func (d *datrie) noConflict(insertPos int, parentIndex int, index int, p *path) 
 	b := &base{q: -1, tailPath: path, tailHandler: p.paramAndHandle[insertPos:], handle: p.paramAndHandle[last]}
 	d.setCheck(index, parentIndex)
 	d.setBase(index, b)
-
-	d.debug(64, "noConflict", 0, insertPos, 0)
-
-	p.debug()
 }
 
 func (d *datrie) debug(max int, insertWord string, index, insertPos, base int) {
 	fmt.Printf("\n#word(%s) index(%d) insertPos(%d) base(%d)\n", insertWord, index, insertPos, base)
-	fmt.Printf("base %9s ", "")
-	for _, v := range d.base[:max] {
-		fmt.Printf("[%v]  ", v)
-	}
+	/*
+		fmt.Printf("base %9s ", "")
+		for _, v := range d.base[:max] {
+			fmt.Printf("[%v]  ", v)
+		}
+	*/
 
 	fmt.Printf("\n")
-	fmt.Printf("check %8s %v\n", "", d.check[:max])
+	fmt.Printf("index ")
+	for i := 0; i < max; i++ {
+		fmt.Printf("%02d ", i)
+	}
+	fmt.Printf("\n")
+
+	fmt.Printf("check ")
+	for i := 0; i < max; i++ {
+		fmt.Printf("%02d ", d.check[i])
+	}
+	fmt.Printf("\n")
 }
 
 func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle, p2 *Params) {
@@ -174,6 +182,15 @@ func (d *datrie) lookup(path string) (h *handle, p Params) {
 	return h, *p2
 }
 
+func (d *datrie) getIndex(parentIndex int, c byte) int {
+	q := 0
+	if d.base[parentIndex] != nil {
+		q = d.base[parentIndex].q
+	}
+
+	return q + getCodeOffset(c)
+}
+
 // 查找
 func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
@@ -181,25 +198,39 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 	var index int
 
 	var b *base
-	for k := 0; k < len(path); k++ {
+
+	for k := 0; k < len(path); {
 
 		c := path[k]
 
-		index = d.base[parentIndex].q + getCodeOffset(c)
+		index = d.getIndex(parentIndex, c)
 
 		if index >= len(d.base) {
 			return nil, p
 		}
 
-		b := d.base[index]
 		if d.check[index] != parentIndex {
 			return nil, p
 		}
 
+		b := d.base[index]
+
 		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入下面的for循环
 		if b != nil && b.q > 0 && b.handle != nil && d.path > 1 {
 			h := b.handle
-			fmt.Printf("find base param:%s\n", h.paramName)
+			if h.paramName == "" {
+
+				if len(b.tailPath) == 1 && len(path[k+1:]) == 1 && b.tailPath[0] == path[k+1] {
+					//这个path是一个更大的path组装部分, 所以b.q > 0
+					//但是它已经是最后一个字符了
+					return h, p2
+				}
+
+				parentIndex = index
+				k++
+
+				continue
+			}
 
 			i := k + 1
 			p2.appendKey(h.paramName)
@@ -219,32 +250,24 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 				return h, p2
 			}
 
-			k = j - 1
+			k = j
 			parentIndex = d.base[index].q + getCodeOffset(':')
 
-			fmt.Printf("###(%c)------->Param:(%v):path(%s), base:(%v) handle:(%v), handle:(%p)\n", c, p2, path[k:], b, b.handle, b.handle)
 			continue
 
 		}
 
-		fmt.Printf("path(%s)d.base[index].q = %d [%c]\n", path, d.base[index].q, c)
 		if b := d.base[index]; b != nil && b.q < 0 {
-			/*
-				if d.head[-tailPos] == 0 && k+1 == len(path) {
-					break
-				}
-			*/
 
 			return d.findParamOrWildcard(b, path[k+1:], p2)
 		}
 
 		if d.check[index] <= 0 {
-			fmt.Printf("return nil, nil, (%s)#############\n", path)
 			return nil, nil
 		}
 
 		parentIndex = index
-
+		k++
 	}
 
 	if b != nil {
@@ -266,13 +289,14 @@ func (d *datrie) setTail(c byte, q int, parentIndex int, p *path) {
 	d.setCheck(index, parentIndex)
 
 	newBase := d.getBase(index)
-	// 保存了handle 可能是param 或者就是这个路径的handle
-	if len(oldBase.tailHandler) > 0 {
-		newBase.handle = oldBase.tailHandler[0]
-	}
 
-	// 移动tail的字符往前面移动,无效字符使用?代替
+	// 移动tail的字符往前面移动
 	if len(oldBase.tailPath) > 0 {
+		// oldBase.tailHandler 和oldBase.tailPath是等长的。
+		// 所以这里直接判断len(oldBase.tailPath) > 0
+		// 保存了handle 可能是param 或者就是这个路径的handle
+		newBase.handle = oldBase.tailHandler[0]
+
 		newBase.tailPath = oldBase.tailPath[1:]
 		newBase.tailHandler = oldBase.tailHandler[1:]
 		oldBase.tailPath = string(oldBase.tailPath[0])
