@@ -192,10 +192,14 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 		}
 
 		b := d.base[index]
-		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入findBaseParamOrWildcard函数
-		if b != nil && b.q > 0 && b.handle != nil && d.check[index] == parentIndex && d.path > 1 {
+		if d.check[index] != parentIndex {
+			return nil, p
+		}
 
+		// 如果只有一个path，baseHandler里面肯定没有数据，就不需要进入下面的for循环
+		if b != nil && b.q > 0 && b.handle != nil && d.path > 1 {
 			h := b.handle
+			fmt.Printf("find base param:%s\n", h.paramName)
 
 			i := k + 1
 			p2.appendKey(h.paramName)
@@ -214,11 +218,17 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 			if j == len(path) {
 				return h, p2
 			}
-			fmt.Printf("------->Param:(%v):path(%s), base:(%v) handle:(%v), handle:(%p)\n", p2, path[k:], b, b.handle, b.handle)
+
+			k = j - 1
+			parentIndex = d.base[index].q + getCodeOffset(':')
+
+			fmt.Printf("###(%c)------->Param:(%v):path(%s), base:(%v) handle:(%v), handle:(%p)\n", c, p2, path[k:], b, b.handle, b.handle)
+			continue
 
 		}
 
-		if b := d.base[index]; b != nil && b.q < 0 && d.check[index] == parentIndex {
+		fmt.Printf("path(%s)d.base[index].q = %d [%c]\n", path, d.base[index].q, c)
+		if b := d.base[index]; b != nil && b.q < 0 {
 			/*
 				if d.head[-tailPos] == 0 && k+1 == len(path) {
 					break
@@ -229,6 +239,7 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 		}
 
 		if d.check[index] <= 0 {
+			fmt.Printf("return nil, nil, (%s)#############\n", path)
 			return nil, nil
 		}
 
