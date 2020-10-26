@@ -111,17 +111,30 @@ func (d *datrie) debug(max int, insertWord string, index, insertPos, base int) {
 	*/
 
 	fmt.Printf("\n")
+	fmt.Printf("q     ")
+	for i := 0; i < max; i++ {
+		d := d.base[i]
+		q := 0
+		if d != nil {
+			q = d.q
+		}
+
+		fmt.Printf("%02d ", q)
+	}
+
+	fmt.Printf("\n\n")
+
 	fmt.Printf("index ")
 	for i := 0; i < max; i++ {
 		fmt.Printf("%02d ", i)
 	}
-	fmt.Printf("\n")
+	fmt.Printf("\n\n")
 
 	fmt.Printf("check ")
 	for i := 0; i < max; i++ {
 		fmt.Printf("%02d ", d.check[i])
 	}
-	fmt.Printf("\n")
+	fmt.Printf("\n\n")
 }
 
 func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle, p2 *Params) {
@@ -277,7 +290,7 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 	return nil, p
 }
 
-func (d *datrie) setTail(c byte, q int, parentIndex int, p *path) {
+func (d *datrie) setTail(c byte, q int, parentIndex int, p *path, insertPos int) {
 	// 修改老的跳转基地址, case3 step 6.
 	oldBase := d.getBase(parentIndex)
 
@@ -297,11 +310,35 @@ func (d *datrie) setTail(c byte, q int, parentIndex int, p *path) {
 		// 保存了handle 可能是param 或者就是这个路径的handle
 		newBase.handle = oldBase.tailHandler[0]
 
+		haveHandle := newBase.handle
+		var insertHandle *handle
+		if insertPos < len(p.paramAndHandle) {
+			insertHandle = p.paramAndHandle[insertPos]
+		}
+
+		//fmt.Printf("%p\n", p.paramAndHandle[insertPos])
 		newBase.tailPath = oldBase.tailPath[1:]
 		newBase.tailHandler = oldBase.tailHandler[1:]
 		oldBase.tailPath = string(oldBase.tailPath[0])
 		oldBase.tailHandler = oldBase.tailHandler[0:1]
 		oldBase.handle = oldBase.tailHandler[0]
+
+		// fmt.Printf("newBase.handle:%p, haveHandle:%p, insertHandle:%p\n", newBase.handle, haveHandle, insertHandle)
+		if haveHandle != nil && insertHandle != nil {
+			if haveHandle.paramName != insertHandle.paramName && len(haveHandle.paramName) > 0 {
+				panic(fmt.Sprintf("There is a problem with the inserted path:%s", p.originalPath))
+			}
+
+			newBase.handle = insertHandle
+			if oldBase.handle.paramName == "" && insertHandle.paramName != "" {
+				oldBase.handle.paramName = insertHandle.paramName
+			}
+
+			if oldBase.handle.handle == nil && insertHandle.handle != nil {
+				oldBase.handle = insertHandle
+			}
+
+		}
 	}
 
 	newBase.q = -1
@@ -334,7 +371,7 @@ func (d *datrie) samePrefix(b *base, insertPos, parentIndex int, p *path) (next 
 		// 先计算一个没有冲突的位置 case3 step 5.
 		q := d.xCheck(c)
 
-		d.setTail(c, q, parentIndex, p)
+		d.setTail(c, q, parentIndex, p, insertPos)
 		return true
 	}
 
@@ -359,7 +396,7 @@ func (d *datrie) diff(oldBase *base, insertPos int, insertPath string, parentInd
 
 	d.base[parentIndex].q = q
 	if len(tailPath) > 1 { //tailPath
-		d.setTail(tailPath[0], q, parentIndex, p)
+		d.setTail(tailPath[0], q, parentIndex, p, insertPos)
 	}
 
 	if len(insertPath) > 0 {
@@ -408,12 +445,12 @@ func (d *datrie) insertConflict(insertPos int, parentIndex, index int, p *path) 
 	list, lessIndex := d.selectList(parentIndex, index)
 
 	// step 5
-	tempBase := d.base[lessIndex]
+	tempBase := d.base[lessIndex].q
 	d.base[lessIndex].q = d.xCheckArray(list)
 
 	for _, c := range list {
 		// step 6 or step 9
-		oldNode := tempBase.q + getCodeOffset(c)
+		oldNode := tempBase + getCodeOffset(c)
 		newNode := d.base[lessIndex].q + getCodeOffset(c)
 
 		d.setBase(newNode, d.base[oldNode])

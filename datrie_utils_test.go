@@ -25,7 +25,7 @@ func (tcs *testCases) run(t *testing.T) {
 		d.insert(tc.insertPath, func(w http.ResponseWriter, r *http.Request, p Params) {
 			done++
 		})
-		d.debug(80, tc.insertPath, 0, 0, 0)
+		//d.debug(80, tc.insertPath, 0, 0, 0)
 	}
 
 	for k, tc := range *tcs {
@@ -38,7 +38,7 @@ func (tcs *testCases) run(t *testing.T) {
 				return
 			}
 
-			fmt.Printf("lookup address:%p\n", h)
+			fmt.Printf("testCases.run return h address:%p\n", h)
 			h.handle(nil, nil, nil)
 			assert.Equal(t, done, k+1)
 

@@ -48,7 +48,7 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 			done++
 		})
 
-		d.debug(20, word, 0, 0, 0)
+		//d.debug(20, word, 0, 0, 0)
 	}
 
 	lookupPath := []string{
