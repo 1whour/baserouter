@@ -166,3 +166,80 @@ func Test_github_lookupAndInsertCase4_Param1(t *testing.T) {
 
 	tc.run(t)
 }
+
+func Test_github_lookupAndInsertCase4_Param2(t *testing.T) {
+	tc := testCases{
+		{
+			insertPath: "/users/:user/events/public",
+			lookupPath: "/users/guonaihong/events/public",
+			paramKey:   []string{"user"},
+			paramValue: []string{"guonaihong"},
+		},
+		{
+			insertPath: "/users/:user/events/orgs/:org",
+			lookupPath: "/users/guonaihong/events/orgs/antlabs",
+			paramKey:   []string{"user", "org"},
+			paramValue: []string{"guonaihong", "antlabs"},
+		},
+		{
+			insertPath: "/feeds",
+			lookupPath: "/feeds",
+			paramKey:   []string{""},
+			paramValue: []string{""},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/notifications",
+			lookupPath: "/repos/guonaihong/baserouter/notifications",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
+		{
+			insertPath: "/notifications/threads/:id",
+			lookupPath: "/notifications/threads/10",
+			paramKey:   []string{"id"},
+			paramValue: []string{"10"},
+		},
+		{
+			insertPath: "/notifications/threads/:id/subscription",
+			lookupPath: "/notifications/threads/20/subscription",
+			paramKey:   []string{"id"},
+			paramValue: []string{"20"},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/stargazers",
+			lookupPath: "/repos/guonaihong/baserouter/stargazers",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
+		{
+			insertPath: "/users/:user/starred",
+			lookupPath: "/users/guonaihong/starred",
+			paramKey:   []string{"user"},
+			paramValue: []string{"guonaihong"},
+		},
+		/*
+			{
+				insertPath: "/user/starred",
+				lookupPath: "/user/starred",
+				paramKey:   []string{""},
+				paramValue: []string{""},
+			},
+		*/
+		/*
+			{
+				insertPath: "/user/starred/:owner/:repo",
+				lookupPath: "/user/starred/guonaihong/baserouter",
+				paramKey:   []string{"owner"},
+				paramValue: []string{"guonaihong"},
+			},
+		*/
+		{
+			insertPath: "/repos/:owner/:repo/pulls/comments",
+			lookupPath: "/repos/guonaihong/baserouter/pulls/comments",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
+	}
+
+	tc.run(t)
+}
