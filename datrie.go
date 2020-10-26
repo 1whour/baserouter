@@ -137,7 +137,7 @@ func (d *datrie) debug(max int, insertWord string, index, insertPos, base int) {
 	fmt.Printf("\n\n")
 }
 
-func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle, p2 *Params) {
+func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle) {
 
 	parentIndex := 0
 
@@ -174,7 +174,7 @@ func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle
 
 		if j < len(path) {
 			if path[j] != b.tailPath[i] {
-				return nil, nil
+				return nil
 			}
 		}
 
@@ -182,17 +182,12 @@ func (d *datrie) findParamOrWildcard(b *base, path string, p *Params) (h *handle
 
 	}
 
-	return b.tailHandler[len(b.tailHandler)-1], p
+	return b.tailHandler[len(b.tailHandler)-1]
 }
 
-func (d *datrie) lookup(path string) (h *handle, p Params) {
+func (d *datrie) lookupTest(path string) (h *handle, p Params) {
 	p = make(Params, 0, d.maxParam)
-	h, p2 := d.lookup2(path, &p)
-	if p2 == nil {
-		return nil, p
-	}
-
-	return h, *p2
+	return d.lookup(path, &p), p
 }
 
 func (d *datrie) getIndex(parentIndex int, c byte) int {
@@ -205,7 +200,7 @@ func (d *datrie) getIndex(parentIndex int, c byte) int {
 }
 
 // 查找
-func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
+func (d *datrie) lookup(path string, p *Params) (h *handle) {
 
 	parentIndex := 1
 	var index int
@@ -219,11 +214,11 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 		index = d.getIndex(parentIndex, c)
 
 		if index >= len(d.base) {
-			return nil, p
+			return nil
 		}
 
 		if d.check[index] != parentIndex {
-			return nil, p
+			return nil
 		}
 
 		b := d.base[index]
@@ -236,7 +231,7 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 				if len(b.tailPath) == 1 && len(path[k+1:]) == 1 && b.tailPath[0] == path[k+1] {
 					//这个path是一个更大的path组装部分, 所以b.q > 0
 					//但是它已经是最后一个字符了
-					return h, p2
+					return h
 				}
 
 				parentIndex = index
@@ -246,21 +241,21 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 			}
 
 			i := k + 1
-			p2.appendKey(h.paramName)
+			p.appendKey(h.paramName)
 
 			if h.wildcard { //通配符号
 				p.setVal(path[i:len(path)])
-				return b.handle, p2
+				return b.handle
 			}
 
 			var j int
 			for j = i; j < len(path) && path[j] != '/'; j++ {
 			}
 
-			p2.setVal(path[i:j])
+			p.setVal(path[i:j])
 
 			if j == len(path) {
-				return h, p2
+				return h
 			}
 
 			k = j
@@ -272,11 +267,11 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 
 		if b := d.base[index]; b != nil && b.q < 0 {
 
-			return d.findParamOrWildcard(b, path[k+1:], p2)
+			return d.findParamOrWildcard(b, path[k+1:], p)
 		}
 
 		if d.check[index] <= 0 {
-			return nil, nil
+			return nil
 		}
 
 		parentIndex = index
@@ -284,10 +279,10 @@ func (d *datrie) lookup2(path string, p2 *Params) (h *handle, p *Params) {
 	}
 
 	if b != nil {
-		return b.handle, p
+		return b.handle
 	}
 
-	return nil, p
+	return nil
 }
 
 func (d *datrie) setTail(c byte, q int, parentIndex int, p *path, insertPos int) {

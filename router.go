@@ -67,9 +67,9 @@ func (r *router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			datrie.paramPool.Put(p)
 		}
 
-		h, p := datrie.lookup2(path, p2)
+		h := datrie.lookup(path, p2)
 		if h != nil {
-			h.handle(w, req, *p)
+			h.handle(w, req, *p2)
 			put(p2)
 			return
 		}

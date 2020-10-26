@@ -25,7 +25,7 @@ func Test_lookupAndInsertCase1(t *testing.T) {
 	}
 
 	for k, word := range insertWord {
-		h, _ := d.lookup(word)
+		h, _ := d.lookupTest(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {
@@ -73,7 +73,7 @@ func Test_lookupAndInsertCase1_Param(t *testing.T) {
 
 	needKey := "name"
 	for k, word := range lookupPath {
-		h, p := d.lookup(word)
+		h, p := d.lookupTest(word)
 
 		assert.NotEqual(t, h, (*handle)(nil))
 		if h == nil {

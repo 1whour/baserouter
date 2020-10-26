@@ -30,8 +30,10 @@ func (tcs *testCases) run(t *testing.T) {
 
 	for k, tc := range *tcs {
 
-		h, p := d.lookup(tc.lookupPath)
+		p2 := make(Params, 0, d.maxParam)
+		h := d.lookup(tc.lookupPath, &p2)
 
+		p := p2
 		cb := func() {
 			assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", tc.lookupPath))
 			if h == nil {

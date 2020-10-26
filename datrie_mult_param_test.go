@@ -41,7 +41,7 @@ func Test_lookupAndInsertMult_Param(t *testing.T) {
 	}
 
 	for k, word := range lookupPath {
-		h, p := d.lookup(word)
+		h, p := d.lookupTest(word)
 
 		assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", word))
 		if h == nil {
