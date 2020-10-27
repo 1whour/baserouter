@@ -1,5 +1,6 @@
 # baserouter
 baserouter和httprouter定位是比较类似的库，借鉴了httprouter的API设计，底层使用不同的算法和数据结构，它是一种新的尝试，看性能上能否更快
+
 [![Go](https://github.com/antlabs/baserouter/workflows/Go/badge.svg)](https://github.com/antlabs/baserouter/actions)
 [![codecov](https://codecov.io/gh/antlabs/baserouter/branch/master/graph/badge.svg)](https://codecov.io/gh/antlabs/baserouter)
 
