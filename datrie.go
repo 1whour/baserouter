@@ -562,7 +562,6 @@ func (d *datrie) moveToNewParent(oldParent, newParent int) {
 			found = true
 			offset := i - d.base[oldParent].q
 			d.setCheck(d.base[oldParent].q+offset, newParent)
-			break
 		}
 	}
 

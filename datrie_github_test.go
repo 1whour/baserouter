@@ -217,22 +217,18 @@ func Test_github_lookupAndInsertCase4_Param2(t *testing.T) {
 			paramKey:   []string{"user"},
 			paramValue: []string{"guonaihong"},
 		},
-		/*
-			{
-				insertPath: "/user/starred",
-				lookupPath: "/user/starred",
-				paramKey:   []string{""},
-				paramValue: []string{""},
-			},
-		*/
-		/*
-			{
-				insertPath: "/user/starred/:owner/:repo",
-				lookupPath: "/user/starred/guonaihong/baserouter",
-				paramKey:   []string{"owner"},
-				paramValue: []string{"guonaihong"},
-			},
-		*/
+		{
+			insertPath: "/user/starred",
+			lookupPath: "/user/starred",
+			paramKey:   []string{""},
+			paramValue: []string{""},
+		},
+		{
+			insertPath: "/user/starred/:owner/:repo",
+			lookupPath: "/user/starred/guonaihong/baserouter",
+			paramKey:   []string{"owner"},
+			paramValue: []string{"guonaihong"},
+		},
 		{
 			insertPath: "/repos/:owner/:repo/pulls/comments",
 			lookupPath: "/repos/guonaihong/baserouter/pulls/comments",

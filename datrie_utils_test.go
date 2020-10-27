@@ -36,13 +36,13 @@ func (tcs *testCases) run(t *testing.T) {
 		p := p2
 		cb := func() {
 			assert.NotEqual(t, h, (*handle)(nil), fmt.Sprintf("lookup word(%s)", tc.lookupPath))
-			if h == nil {
-				return
-			}
 
 			fmt.Printf("testCases.run return h address:%p\n", h)
 			h.handle(nil, nil, nil)
-			assert.Equal(t, done, k+1)
+			b := assert.Equal(t, done, k+1)
+			if !b {
+				panic(fmt.Sprintf("done(%d) != %d", done, k+1))
+			}
 
 			for index, needKey := range tc.paramKey {
 				if len(needKey) == 0 {
