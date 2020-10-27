@@ -239,3 +239,78 @@ func Test_github_lookupAndInsertCase4_Param2(t *testing.T) {
 
 	tc.run(t)
 }
+
+func Test_github_lookupAndInsertCase4_Param3(t *testing.T) {
+	tc := testCases{
+		{
+			insertPath: "/authorizations",
+			lookupPath: "/authorizations",
+			paramKey:   []string{""},
+			paramValue: []string{""},
+		},
+		{
+			insertPath: "/authorizations/:id",
+			lookupPath: "/authorizations/12",
+			paramKey:   []string{"id"},
+			paramValue: []string{"12"},
+		},
+		{
+			insertPath: "/applications/:client_id/tokens/:access_token",
+			lookupPath: "/applications/12/tokens/access_token_haha",
+			paramKey:   []string{"client_id", "access_token"},
+			paramValue: []string{"12", "access_token_haha"},
+		},
+		{
+			insertPath: "/events",
+			lookupPath: "/events",
+			paramKey:   []string{},
+			paramValue: []string{},
+		},
+		{
+			insertPath: "/repos/:owner/:repo/events",
+			lookupPath: "/repos/guonaihong/baserouter/events",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
+		{
+			insertPath: "/networks/:owner/:repo/events",
+			lookupPath: "/networks/guonaihong/baserouter/events",
+			paramKey:   []string{"owner", "repo"},
+			paramValue: []string{"guonaihong", "baserouter"},
+		},
+		{
+			insertPath: "/orgs/:org/events",
+			lookupPath: "/orgs/antlabs/events",
+			paramKey:   []string{"org"},
+			paramValue: []string{"antlabs"},
+		},
+		{
+			insertPath: "/users/:user/received_events",
+			lookupPath: "/users/guonaihong/received_events",
+			paramKey:   []string{"user"},
+			paramValue: []string{"guonaihong"},
+		},
+		{
+			insertPath: "/users/:user/received_events/public",
+			lookupPath: "/users/guonaihong/received_events/public",
+			paramKey:   []string{"user"},
+			paramValue: []string{"guonaihong"},
+		},
+		/*
+			{
+				insertPath: "/users/:user/events/public",
+				lookupPath: "/users/:user/events/public",
+				paramKey:   []string{"user"},
+				paramValue: []string{"guonaihong"},
+			},
+				{
+					insertPath: "/notifications/threads/:id",
+					lookupPath: "/notifications/threads/11",
+					paramKey:   []string{"id"},
+					paramValue: []string{"11"},
+				},
+		*/
+	}
+
+	tc.run(t)
+}
