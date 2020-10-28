@@ -502,10 +502,6 @@ func (d *datrie) insert(path string, h HandleFunc) {
 	for pos := 0; pos < len(p.insertPath); pos++ {
 		c := p.insertPath[pos]
 		index := d.base[parentIndex].q + getCodeOffset(c)
-		if index >= len(d.base) {
-			// 扩容
-			d.expansion(index)
-		}
 
 		if d.getCheck(index) == 0 {
 			d.noConflict(pos+1, parentIndex, index, p)
@@ -529,30 +525,6 @@ func (d *datrie) insert(path string, h HandleFunc) {
 		parentIndex = index
 
 	}
-}
-
-func expansion(array *[]*base, need int) {
-	a := make([]*base, need)
-	copy(a, *array)
-	*array = a
-}
-
-func expansionInt(array *[]int, need int) {
-	a := make([]int, need)
-	copy(a, *array)
-	*array = a
-}
-
-// 扩容
-func (d *datrie) expansion(max int) {
-	need := max
-	if need < len(d.base)*2 {
-		need = len(d.base) * 2
-	}
-
-	expansion(&d.base, need)
-	expansionInt(&d.check, need)
-
 }
 
 func (d *datrie) moveToNewParent(oldParent, newParent int) {
