@@ -46,8 +46,8 @@ type datrie struct {
 // 初始化函数
 func newDatrie() *datrie {
 	d := &datrie{
-		base:  make([]*base, 1024),
-		check: make([]int, 1024),
+		base:  make([]*base, 2),
+		check: make([]int, 2),
 	}
 
 	d.base[0] = &base{q: 1}
@@ -74,6 +74,11 @@ func (d *datrie) getBase(index int) *base {
 		d.base[index] = &base{}
 	}
 	return d.base[index]
+}
+
+func (d *datrie) getCheck(index int) int {
+	d.expansionCheck(index)
+	return d.check[index]
 }
 
 func (d *datrie) expansionCheck(index int) {
@@ -502,7 +507,7 @@ func (d *datrie) insert(path string, h HandleFunc) {
 			d.expansion(index)
 		}
 
-		if d.check[index] == 0 {
+		if d.getCheck(index) == 0 {
 			d.noConflict(pos+1, parentIndex, index, p)
 			return
 		}
